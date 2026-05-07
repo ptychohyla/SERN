@@ -1,0 +1,7 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(start \"\" \"d:\\\\project\\\\hinsyeow\\\\SERN\\\\index.html\")"
+    ]
+  }
+}

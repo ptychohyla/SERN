@@ -1,0 +1,343 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sern FinTech — 量化科技驱动未来</title>
+    <meta name="description" content="Sern FinTech 致力于为机构投资者提供专业的量化策略跟踪与回测平台">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Playfair+Display:wght@500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+    <!-- ====== Navigation ====== -->
+    <nav class="navbar" id="navbar">
+        <div class="container nav-container">
+            <a href="#" class="nav-logo">
+                <span class="logo-icon">⟁</span>
+                <span class="logo-text">SERN<span class="logo-accent">FIN</span></span>
+            </a>
+            <ul class="nav-links" id="navLinks">
+                <li><a href="#about" class="nav-link">About</a></li>
+                <li><a href="#products" class="nav-link">Products</a></li>
+                <li><a href="#technology" class="nav-link">Technology</a></li>
+                <li><a href="#why" class="nav-link">Why Sern</a></li>
+                <li><a href="#contact" class="nav-link nav-cta">Contact</a></li>
+            </ul>
+            <button class="nav-toggle" id="navToggle" aria-label="Menu">
+                <span></span><span></span><span></span>
+            </button>
+        </div>
+    </nav>
+
+    <!-- ====== Hero ====== -->
+    <section class="hero" id="hero">
+        <canvas id="heroCanvas"></canvas>
+        <div class="hero-overlay"></div>
+        <div class="container hero-content">
+            <div class="hero-badge">Quantitative Intelligence</div>
+            <h1 class="hero-title">
+                Decode the Market<br>
+                <span class="text-gradient">With Precision</span>
+            </h1>
+            <p class="hero-desc">
+                Sern FinTech builds institutional-grade quantitative platforms —
+                from strategy tracking to deep backtesting — empowering data-driven
+                investment decisions.
+            </p>
+            <div class="hero-actions">
+                <a href="#products" class="btn btn-primary">Explore Products</a>
+                <a href="#about" class="btn btn-outline">Learn More</a>
+            </div>
+            <div class="hero-stats">
+                <div class="hero-stat">
+                    <span class="hero-stat-num" data-count="12">0</span><span class="hero-stat-suffix">+</span>
+                    <span class="hero-stat-label">Strategies</span>
+                </div>
+                <div class="hero-stat">
+                    <span class="hero-stat-num" data-count="500">0</span><span class="hero-stat-suffix">M+</span>
+                    <span class="hero-stat-label">Data Points</span>
+                </div>
+                <div class="hero-stat">
+                    <span class="hero-stat-num" data-count="99.9">0</span><span class="hero-stat-suffix">%</span>
+                    <span class="hero-stat-label">Uptime</span>
+                </div>
+            </div>
+        </div>
+        <div class="scroll-indicator">
+            <span>Scroll</span>
+            <div class="scroll-arrow"></div>
+        </div>
+    </section>
+
+    <!-- ====== About ====== -->
+    <section class="section about" id="about">
+        <div class="container">
+            <div class="section-header reveal">
+                <span class="section-tag">About</span>
+                <h2 class="section-title">Where Data Meets<br><span class="text-gradient">Alpha</span></h2>
+                <p class="section-desc">
+                    Founded by a team of quantitative researchers and engineers, Sern FinTech
+                    is on a mission to democratize institutional-grade quant technology. We
+                    combine deep market microstructure knowledge with cutting-edge machine
+                    learning to build tools that surface repeatable, risk-adjusted returns.
+                </p>
+            </div>
+            <div class="about-grid">
+                <div class="about-card reveal">
+                    <div class="about-icon">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                            <path d="M3 3v18h18"/><path d="M7 16l4-8 4 4 4-6"/>
+                        </svg>
+                    </div>
+                    <h3>Research-Driven</h3>
+                    <p>Every product is built on rigorous academic research and validated through thousands of hours of market data analysis.</p>
+                </div>
+                <div class="about-card reveal">
+                    <div class="about-icon">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                            <path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/>
+                        </svg>
+                    </div>
+                    <h3>Institutional Grade</h3>
+                    <p>Built for the rigorous demands of hedge funds and asset managers, with enterprise-level security and reliability.</p>
+                </div>
+                <div class="about-card reveal">
+                    <div class="about-icon">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                            <circle cx="12" cy="12" r="3"/><path d="M12 1v4M12 19v4M4.22 4.22l2.83 2.83M16.95 16.95l2.83 2.83M1 12h4M19 12h4M4.22 19.78l2.83-2.83M16.95 7.05l2.83-2.83"/>
+                        </svg>
+                    </div>
+                    <h3>AI-Native</h3>
+                    <p>Machine learning models trained on terabytes of alternative data to uncover non-obvious signals and patterns.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- ====== Products ====== -->
+    <section class="section products" id="products">
+        <div class="container">
+            <div class="section-header reveal">
+                <span class="section-tag">Products</span>
+                <h2 class="section-title">Powerful Tools for<br><span class="text-gradient">Quantitative Edge</span></h2>
+                <p class="section-desc">
+                    From real-time strategy monitoring to historical simulation, our platform
+                    covers the entire quant workflow.
+                </p>
+            </div>
+            <div class="products-grid">
+                <div class="product-card reveal">
+                    <div class="product-visual">
+                        <div class="product-chart" id="chart1"></div>
+                    </div>
+                    <div class="product-info">
+                        <span class="product-label">Core Platform</span>
+                        <h3>Quant Strategy Tracking</h3>
+                        <p>Real-time performance monitoring, risk metrics, and attribution analysis for multi-strategy portfolios. Supports live trading signals, P&L decomposition, and custom benchmarks.</p>
+                        <ul class="product-features">
+                            <li>Real-time P&L & risk dashboards</li>
+                            <li>Multi-asset portfolio aggregation</li>
+                            <li>Automated performance attribution</li>
+                            <li>API & FIX connectivity</li>
+                        </ul>
+                        <a href="#" class="btn btn-text">Learn more →</a>
+                    </div>
+                </div>
+                <div class="product-card reveal">
+                    <div class="product-visual">
+                        <div class="product-chart" id="chart2"></div>
+                    </div>
+                    <div class="product-info">
+                        <span class="product-label">Simulation Engine</span>
+                        <h3>Quantitative Backtesting</h3>
+                        <p>High-performance backtesting engine that simulates strategies across decades of market data with sub-millisecond latency, realistic slippage, and transaction cost models.</p>
+                        <ul class="product-features">
+                            <li>Vectorized & event-driven modes</li>
+                            <li>20+ years of global market data</li>
+                            <li>Monte Carlo risk simulation</li>
+                            <li>Customizable cost models</li>
+                        </ul>
+                        <a href="#" class="btn btn-text">Learn more →</a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- ====== Technology ====== -->
+    <section class="section tech" id="technology">
+        <div class="container">
+            <div class="section-header reveal">
+                <span class="section-tag">Technology</span>
+                <h2 class="section-title">Built for<br><span class="text-gradient">Performance</span></h2>
+                <p class="section-desc">
+                    Our technology stack is engineered from the ground up for speed,
+                    reliability, and scalability.
+                </p>
+            </div>
+            <div class="tech-grid">
+                <div class="tech-card reveal">
+                    <div class="tech-icon">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                            <rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/>
+                        </svg>
+                    </div>
+                    <h4>Low-Latency Architecture</h4>
+                    <p>Sub-microsecond tick-to-signal pipeline built in Rust &amp; C++.</p>
+                </div>
+                <div class="tech-card reveal">
+                    <div class="tech-icon">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                            <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/>
+                        </svg>
+                    </div>
+                    <h4>Real-Time Alerts</h4>
+                    <p>Smart notification engine with anomaly detection and regime change alerts.</p>
+                </div>
+                <div class="tech-card reveal">
+                    <div class="tech-icon">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                            <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/>
+                        </svg>
+                    </div>
+                    <h4>Enterprise Security</h4>
+                    <p>SOC 2 compliant, end-to-end encryption, role-based access control.</p>
+                </div>
+                <div class="tech-card reveal">
+                    <div class="tech-icon">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                            <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>
+                        </svg>
+                    </div>
+                    <h4>ML Pipeline</h4>
+                    <p>Automated feature engineering, model training, and backtesting integration.</p>
+                </div>
+                <div class="tech-card reveal">
+                    <div class="tech-icon">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                            <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>
+                        </svg>
+                    </div>
+                    <h4>Comprehensive Docs</h4>
+                    <p>Detailed API documentation, SDKs in Python, C++, and Julia.</p>
+                </div>
+                <div class="tech-card reveal">
+                    <div class="tech-icon">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                            <circle cx="12" cy="12" r="10"/><path d="M2 12h20M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/>
+                        </svg>
+                    </div>
+                    <h4>Global Data Coverage</h4>
+                    <p>Equities, FX, fixed income, and derivatives across 60+ exchanges.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- ====== Why Sern ====== -->
+    <section class="section why" id="why">
+        <div class="container">
+            <div class="section-header reveal">
+                <span class="section-tag">Why Sern</span>
+                <h2 class="section-title">Built by Quants,<br><span class="text-gradient">For Quants</span></h2>
+                <p class="section-desc">
+                    We understand the workflow because we live it. Every feature is designed
+                    to solve real problems quantitative teams face daily.
+                </p>
+            </div>
+            <div class="why-grid">
+                <div class="why-card reveal">
+                    <div class="why-number">01</div>
+                    <h3>Speed That Matters</h3>
+                    <p>Our backtesting engine processes 10 years of tick data in seconds, not hours. Parallelized from the ground up.</p>
+                </div>
+                <div class="why-card reveal">
+                    <div class="why-number">02</div>
+                    <h3>Data You Can Trust</h3>
+                    <p>Clean, survivorship-bias-free datasets with transparent lineage and real-time quality monitoring.</p>
+                </div>
+                <div class="why-card reveal">
+                    <div class="why-number">03</div>
+                    <h3>Seamless Integration</h3>
+                    <p>Plug into your existing infrastructure via REST APIs, WebSocket streams, or dedicated SDKs.</p>
+                </div>
+                <div class="why-card reveal">
+                    <div class="why-number">04</div>
+                    <h3>Dedicated Support</h3>
+                    <p>Quantitative engineers assigned to your team. No ticket queues, no wait times.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- ====== CTA Banner ====== -->
+    <section class="cta-banner" id="contact">
+        <div class="cta-bg"></div>
+        <div class="container cta-content reveal">
+            <h2 class="cta-title">Ready to Elevate Your<br><span class="text-gradient">Quant Workflow?</span></h2>
+            <p class="cta-desc">
+                Join leading hedge funds and asset managers who trust Sern FinTech
+                for their quantitative infrastructure.
+            </p>
+            <div class="cta-actions">
+                <a href="#" class="btn btn-primary btn-lg">Request Demo</a>
+                <a href="#" class="btn btn-outline btn-lg">Contact Sales</a>
+            </div>
+        </div>
+    </section>
+
+    <!-- ====== Footer ====== -->
+    <footer class="footer">
+        <div class="container">
+            <div class="footer-grid">
+                <div class="footer-brand">
+                    <a href="#" class="nav-logo">
+                        <span class="logo-icon">⟁</span>
+                        <span class="logo-text">SERN<span class="logo-accent">FIN</span></span>
+                    </a>
+                    <p>Quantitative technology for the next generation of investment professionals.</p>
+                    <div class="footer-social">
+                        <a href="#" class="social-link" aria-label="Twitter">𝕏</a>
+                        <a href="#" class="social-link" aria-label="LinkedIn">in</a>
+                        <a href="#" class="social-link" aria-label="GitHub">GH</a>
+                    </div>
+                </div>
+                <div class="footer-col">
+                    <h4>Products</h4>
+                    <ul>
+                        <li><a href="#">Strategy Tracking</a></li>
+                        <li><a href="#">Backtesting</a></li>
+                        <li><a href="#">Risk Analytics</a></li>
+                        <li><a href="#">Data Feeds</a></li>
+                    </ul>
+                </div>
+                <div class="footer-col">
+                    <h4>Company</h4>
+                    <ul>
+                        <li><a href="#">About Us</a></li>
+                        <li><a href="#">Careers</a></li>
+                        <li><a href="#">Blog</a></li>
+                        <li><a href="#">Press</a></li>
+                    </ul>
+                </div>
+                <div class="footer-col">
+                    <h4>Contact</h4>
+                    <ul>
+                        <li><a href="mailto:hello@sernfintech.com">hello@sernfintech.com</a></li>
+                        <li><a href="#">+1 (212) 555-0198</a></li>
+                        <li><a href="#">New York · London · Singapore</a></li>
+                    </ul>
+                </div>
+            </div>
+            <div class="footer-bottom">
+                <p>&copy; 2026 Sern FinTech. All rights reserved.</p>
+            </div>
+        </div>
+    </footer>
+
+    <script src="js/main.js"></script>
+</body>
+</html>
