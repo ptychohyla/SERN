@@ -39,20 +39,17 @@
     }
 
     for (let i = 0; i < particleCount; i++) {
-      const isStar = Math.random() > 0.55; // ~45% 十字星闪光粒子
       particles.push({
         x: Math.random(),
         y: Math.random(),
-        size: isStar ? (Math.random() * 1.2 + 0.6) : (Math.random() * 2 + 0.5),
+        size: Math.random() * 2 + 0.5,
         speedY: -(Math.random() * 0.00015 + 0.00003), // 缓慢上升
         swayAmp: Math.random() * 0.00008 + 0.00002,
         swayFreq: Math.random() * 0.5 + 0.3,
         swayOffset: Math.random() * Math.PI * 2,
-        alphaBase: Math.random() * 0.35 + 0.12,
+        alphaBase: Math.random() * 0.45 + 0.25,
         twinkleSpeed: Math.random() * 0.025 + 0.008,
-        twinkleOffset: Math.random() * Math.PI * 2,
-        isStar: isStar,
-        starRays: Math.floor(Math.random() * 2) + 4 // 4 or 5 rays
+        twinkleOffset: Math.random() * Math.PI * 2
       });
     }
 
@@ -78,70 +75,22 @@
         const px = p.x * W;
         const py = p.y * H;
 
-        if (p.isStar) {
-          // 光晕 glow halo
-          const glowScale = p.size * 8;
-          const glowGrad = ctx.createRadialGradient(px, py, 0, px, py, glowScale);
-          glowGrad.addColorStop(0, `rgba(147, 197, 253, ${alpha * 0.35})`);
-          glowGrad.addColorStop(0.4, `rgba(56, 189, 248, ${alpha * 0.15})`);
-          glowGrad.addColorStop(1, 'rgba(56, 189, 248, 0)');
-          ctx.fillStyle = glowGrad;
+        // 普通圆点带光晕
+        ctx.beginPath();
+        ctx.arc(px, py, p.size, 0, Math.PI * 2);
+        ctx.fillStyle = `rgba(180, 220, 255, ${alpha})`;
+        ctx.fill();
+
+        // 光晕效果
+        if (p.size > 1.0) {
+          const grad = ctx.createRadialGradient(px, py, 0, px, py, p.size * 5);
+          grad.addColorStop(0, `rgba(100, 210, 255, ${alpha * 0.5})`);
+          grad.addColorStop(0.5, `rgba(80, 200, 255, ${alpha * 0.2})`);
+          grad.addColorStop(1, 'rgba(56, 189, 248, 0)');
+          ctx.fillStyle = grad;
           ctx.beginPath();
-          ctx.arc(px, py, glowScale, 0, Math.PI * 2);
+          ctx.arc(px, py, p.size * 5, 0, Math.PI * 2);
           ctx.fill();
-
-          // 外层长射线（亮度提升）
-          const rayLen = p.size * 4.5;
-          ctx.strokeStyle = `rgba(220, 240, 255, ${alpha * 1.0})`;
-          ctx.lineWidth = 0.8;
-          for (let r = 0; r < p.starRays; r++) {
-            const angle = (Math.PI * 2 * r) / p.starRays + time * 0.005;
-            ctx.beginPath();
-            ctx.moveTo(px - Math.cos(angle) * rayLen, py - Math.sin(angle) * rayLen);
-            ctx.lineTo(px + Math.cos(angle) * rayLen, py + Math.sin(angle) * rayLen);
-            ctx.stroke();
-          }
-
-          // 内层短射线（更亮）
-          const shortRayLen = p.size * 2.2;
-          ctx.strokeStyle = `rgba(255, 255, 255, ${alpha * 0.7})`;
-          ctx.lineWidth = 0.5;
-          for (let r = 0; r < p.starRays; r++) {
-            const angle = (Math.PI * 2 * r) / p.starRays + time * 0.005;
-            ctx.beginPath();
-            ctx.moveTo(px - Math.cos(angle) * shortRayLen, py - Math.sin(angle) * shortRayLen);
-            ctx.lineTo(px + Math.cos(angle) * shortRayLen, py + Math.sin(angle) * shortRayLen);
-            ctx.stroke();
-          }
-
-          // 中心亮点（更亮更大）
-          ctx.beginPath();
-          ctx.arc(px, py, p.size * 0.9, 0, Math.PI * 2);
-          ctx.fillStyle = `rgba(240, 248, 255, ${alpha * 1.4})`;
-          ctx.fill();
-
-          // 中心高光核心
-          ctx.beginPath();
-          ctx.arc(px, py, p.size * 0.35, 0, Math.PI * 2);
-          ctx.fillStyle = `rgba(255, 255, 255, ${alpha * 2.0})`;
-          ctx.fill();
-        } else {
-          // 普通圆点
-          ctx.beginPath();
-          ctx.arc(px, py, p.size, 0, Math.PI * 2);
-          ctx.fillStyle = `rgba(147, 197, 253, ${alpha})`;
-          ctx.fill();
-
-          // 较大粒子的光晕
-          if (p.size > 1.2) {
-            const grad = ctx.createRadialGradient(px, py, 0, px, py, p.size * 5);
-            grad.addColorStop(0, `rgba(56, 189, 248, ${alpha * 0.3})`);
-            grad.addColorStop(1, 'rgba(56, 189, 248, 0)');
-            ctx.fillStyle = grad;
-            ctx.beginPath();
-            ctx.arc(px, py, p.size * 5, 0, Math.PI * 2);
-            ctx.fill();
-          }
         }
       });
 
@@ -174,17 +123,17 @@
       const x = i * spacing + spacing * 0.5;
       const isUp = close >= open;
 
-      ctx.strokeStyle = isUp ? 'rgba(34,197,94,0.35)' : 'rgba(239,68,68,0.35)';
+      ctx.strokeStyle = isUp ? 'rgba(34,197,94,0.4)' : 'rgba(239,68,68,0.4)';
       ctx.lineWidth = 1.2;
       ctx.beginPath();
       ctx.moveTo(x, Math.max(0, high));
       ctx.lineTo(x, Math.min(height, low));
       ctx.stroke();
 
-      ctx.fillStyle = isUp ? 'rgba(34,197,94,0.28)' : 'rgba(239,68,68,0.28)';
+      ctx.fillStyle = isUp ? 'rgba(34,197,94,0.3)' : 'rgba(239,68,68,0.3)';
       const bodyTop = Math.min(open, close);
-      const bodyHeight = Math.max(2, Math.abs(close - open));
-      ctx.fillRect(x - 2, bodyTop, 4, bodyHeight);
+      const bodyHeight = Math.max(1.5, Math.abs(close - open));
+      ctx.fillRect(x - 1.5, bodyTop, 3, bodyHeight);
 
       price = close;
     }
@@ -252,13 +201,13 @@
     const cy = H / 2;
     const radius = Math.min(W, H) * 0.36;
 
-    const latLines = 10;
-    const lonLines = 14;
+    const latLines = 14;
+    const lonLines = 18;
     const nodes = [];
-    for (let i = 0; i < 100; i++) {
+    for (let i = 0; i < 180; i++) {
       const theta = Math.random() * Math.PI * 2;
       const phi = Math.acos(2 * Math.random() - 1);
-      nodes.push({ theta, phi, size: Math.random() * 2.2 + 0.8 });
+      nodes.push({ theta, phi, size: Math.random() * 2.5 + 1.2 });
     }
 
     let rotation = 0;
@@ -293,8 +242,8 @@
           else ctx.lineTo(p.x, p.y);
         }
         ctx.closePath();
-        ctx.strokeStyle = 'rgba(56,189,248,0.15)';
-        ctx.lineWidth = 0.7;
+        ctx.strokeStyle = 'rgba(56,189,248,0.25)';
+        ctx.lineWidth = 0.8;
         ctx.stroke();
       }
 
@@ -312,8 +261,8 @@
           if (first) { ctx.moveTo(p.x, p.y); first = false; }
           else ctx.lineTo(p.x, p.y);
         }
-        ctx.strokeStyle = 'rgba(56,189,248,0.15)';
-        ctx.lineWidth = 0.7;
+        ctx.strokeStyle = 'rgba(56,189,248,0.25)';
+        ctx.lineWidth = 0.8;
         ctx.stroke();
       }
 
@@ -421,6 +370,16 @@
     ctx.strokeStyle = '#3b82f6';
     ctx.lineWidth = 1.8;
     ctx.stroke();
+
+    // dots on some points
+    points.forEach((p, i) => {
+      if (i % 4 === 0) {
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, 2.5, 0, Math.PI * 2);
+        ctx.fillStyle = 'rgba(255,255,255,0.9)';
+        ctx.fill();
+      }
+    });
   }
 
   // ==================== Chart 2: Volatile Line with dots ====================
@@ -428,6 +387,16 @@
     const canvas = document.getElementById('chart2');
     if (!canvas) return;
     const { ctx, width, height } = setupCanvas(canvas);
+
+    // dotted grid background
+    ctx.fillStyle = 'rgba(56,189,248,0.08)';
+    for (let gx = 0; gx < width; gx += 16) {
+      for (let gy = 0; gy < height; gy += 16) {
+        ctx.beginPath();
+        ctx.arc(gx, gy, 0.8, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
 
     const points = [];
     const count = 30;
