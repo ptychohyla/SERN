@@ -107,10 +107,18 @@
     return null;
   }
 
+  // negative valuation ratios mean losses/negative equity, not cheapness;
+  // treat them as missing so they cannot top a lower-is-cheaper percentile
+  function nonNegative(x) {
+    return (typeof x === 'number' && x < 0) ? null : x;
+  }
+
   function normalize(symbol, json) {
     var qs = json.quoteSummary || {};
+    if (qs.error) throw new Error('quoteSummary error');
     var results = qs.result || [];
-    var data = results[0] || {};
+    if (!results[0]) throw new Error('quoteSummary empty result');
+    var data = results[0];
     var price = data.price || {};
     var stats = data.defaultKeyStatistics || {};
     var fin = data.financialData || {};
@@ -124,13 +132,13 @@
       currency: price.currency || null,
       price: raw(price, 'regularMarketPrice'),
       marketCap: marketCap,
-      pe: raw(detail, 'trailingPE'),
-      forwardPe: raw(stats, 'forwardPE'),
-      pb: raw(stats, 'priceToBook'),
+      pe: nonNegative(raw(detail, 'trailingPE')),
+      forwardPe: nonNegative(raw(stats, 'forwardPE')),
+      pb: nonNegative(raw(stats, 'priceToBook')),
       ps: raw(stats, 'priceToSalesTrailing12Months'),
-      evEbitda: raw(stats, 'enterpriseToEbitda'),
-      peg: raw(stats, 'pegRatio'),
-      divYield: raw(detail, 'dividendYield'),
+      evEbitda: nonNegative(raw(stats, 'enterpriseToEbitda')),
+      peg: nonNegative(raw(stats, 'pegRatio')),
+      divYield: nonNegative(raw(detail, 'dividendYield')),
       roe: raw(fin, 'returnOnEquity'),
       margin: raw(fin, 'profitMargins'),
       fcf: fcf,
@@ -140,7 +148,7 @@
       debtToEquity: raw(fin, 'debtToEquity'),
       insufficient: false
     };
-    if (out.pe === null) out.pe = raw(stats, 'trailingPE');
+    if (out.pe === null) out.pe = nonNegative(raw(stats, 'trailingPE'));
     if (out.divYield === null) out.divYield = raw(stats, 'trailingAnnualDividendYield');
     return out;
   }
