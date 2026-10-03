@@ -511,7 +511,7 @@
       ['drawer.debt', d.debtToEquity === null ? t('common.na') : fmt(d.debtToEquity, 1)],
       ['drawer.marketcap', fmtMarketCap(d.marketCap, d.currency)],
       ['drawer.currency', d.currency || t('common.na')],
-      ['drawer.source', t('source.' + (d.source === 'yahoo' ? 'yahoo' : d.source === 'price' ? 'price' : 'fallback'))]
+      ['drawer.source', t('source.' + (d.source || 'yahoo'))]
     ];
     rows.forEach(function (r) { metrics.appendChild(metricBox(t(r[0]), r[1])); });
 

@@ -67,7 +67,7 @@
       'method.p3': 'Deep Value follows the Graham tradition: low trailing P/E and P/B with high dividend yield dominate, plus a light financial-health filter to avoid obvious value traps.',
       'method.p4': 'PEG follows the Peter Lynch rule — price relative to earnings growth. PEG carries half the valuation weight, supported by forward P/E, P/S and EV/EBITDA, with growth carrying the largest composite weight.',
       'method.p5': 'Missing metrics are renormalized over the available weights. Stocks with fewer than two usable valuation metrics are moved to the data-unavailable list.',
-      'method.p6': 'Data sources: Yahoo Finance (primary), Eastmoney and Tencent Finance (fallback), cached in this browser for 30 minutes. When Yahoo is unreachable, stocks are scored on fallback snapshots (P/E, P/B, P/S, market cap only; P/E may be static). For research purposes only — not investment advice.',
+      'method.p6': 'Data sources are tried in priority order: Yahoo Finance, Tencent Finance, Eastmoney, then TradingView — the next source is used only when the previous one fails or lacks enough metrics. Cached in this browser for 30 minutes. Fallback sources carry fewer metrics and may use different metric conventions. For research purposes only — not investment advice.',
 
       'drawer.metrics': 'Key metrics',
       'drawer.trend': '3-month trend',
@@ -90,7 +90,9 @@
       'drawer.source': 'Data source',
 
       'source.yahoo': 'Yahoo Finance',
-      'source.fallback': 'Eastmoney / Tencent',
+      'source.tencent': 'Tencent Finance',
+      'source.eastmoney': 'Eastmoney',
+      'source.tradingview': 'TradingView',
       'source.price': 'Price only (fallback)',
 
       'common.na': 'N/A',
@@ -181,7 +183,7 @@
       'method.p3': '深度价值遵循格雷厄姆传统：以低市盈率、低市净率和高股息率为主，辅以轻度财务健康过滤，以规避明显的价值陷阱。',
       'method.p4': 'PEG 遵循彼得·林奇法则——相对盈利增速的便宜程度。PEG 占估值权重一半，配合预期市盈率、市销率与 EV/EBITDA，成长在综合分中占比最高。',
       'method.p5': '缺失指标会按可得权重重新归一化；可用估值指标少于两个的股票将被移入数据不足列表。',
-      'method.p6': '数据来源：Yahoo Finance（主）、东方财富与腾讯财经（备用），在浏览器内缓存 30 分钟。Yahoo 不可达时，股票按备用快照评分（仅 PE/PB/PS/市值，PE 可能为静态口径）。仅供研究参考，不构成投资建议。',
+      'method.p6': '数据来源按优先级依次降级：Yahoo Finance → 腾讯财经 → 东方财富 → TradingView，前一源失败或指标不足时才使用下一源，浏览器内缓存 30 分钟。备用源指标较少且口径可能不同。仅供研究参考，不构成投资建议。',
 
       'drawer.metrics': '核心指标',
       'drawer.trend': '近 3 个月走势',
@@ -204,7 +206,9 @@
       'drawer.source': '数据来源',
 
       'source.yahoo': 'Yahoo Finance',
-      'source.fallback': '东方财富 / 腾讯财经',
+      'source.tencent': '腾讯财经',
+      'source.eastmoney': '东方财富',
+      'source.tradingview': 'TradingView',
       'source.price': '仅价格（备用源）',
 
       'common.na': '暂无',
