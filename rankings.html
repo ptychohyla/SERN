@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SERN FinTech - Stock Rankings</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body class="rankings-page">
+  <canvas id="particle-canvas" class="particle-canvas"></canvas>
+  <div class="bg-grid"></div>
+  <div class="bg-glow"></div>
+
+  <nav class="navbar">
+    <div class="container nav-container">
+      <a href="index.html" class="logo">
+        <span class="logo-icon">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+            <line x1="3" y1="12" x2="21" y2="12"></line>
+            <line x1="3" y1="6" x2="21" y2="6"></line>
+            <line x1="3" y1="18" x2="21" y2="18"></line>
+          </svg>
+        </span>
+        <span class="logo-text">SERN FinTech</span>
+      </a>
+      <ul class="nav-links">
+        <li><a href="index.html" data-i18n="nav.home">Home</a></li>
+        <li><a href="rankings.html" class="active" data-i18n="nav.rankings">Rankings</a></li>
+        <li><a href="index.html#products" data-i18n="nav.products">Products</a></li>
+        <li><a href="index.html#research" data-i18n="nav.research">Research</a></li>
+        <li><a href="mailto:hinsyeow@outlook.com" data-i18n="nav.contact">Contact</a></li>
+      </ul>
+      <button id="lang-toggle" class="lang-toggle">中文</button>
+    </div>
+  </nav>
+
+  <main class="rankings-main">
+    <div class="container">
+      <header class="rankings-header">
+        <h1 class="rankings-title" data-i18n="page.title">Global Valuation Rankings</h1>
+        <p class="rankings-subtitle" data-i18n="page.subtitle">Real-time multi-factor screening across global industry leaders, powered by Yahoo Finance data</p>
+      </header>
+
+      <div class="ticker-strip" id="index-ticker"></div>
+
+      <div class="rankings-panel">
+        <div class="panel-row">
+          <div class="model-seg" id="model-seg" role="group" aria-label="model">
+            <button type="button" data-model="multifactor" data-i18n="model.multifactor">Multi-Factor</button>
+            <button type="button" data-model="deepvalue" data-i18n="model.deepvalue">Deep Value</button>
+            <button type="button" data-model="peg" data-i18n="model.peg">PEG Growth</button>
+          </div>
+          <label class="watch-toggle">
+            <input type="checkbox" id="watch-filter">
+            <span data-i18n="watch.filter">My watchlist only</span>
+          </label>
+        </div>
+
+        <div class="progress-row">
+          <div class="progress-track">
+            <div class="progress-bar" id="progress-bar"></div>
+          </div>
+          <span class="progress-label" id="progress-label"></span>
+          <button class="panel-btn" id="retry-btn" data-i18n="freshness.retry-failed">Retry failed</button>
+          <button class="panel-btn" id="refresh-btn" data-i18n="freshness.refresh">Refresh all</button>
+        </div>
+      </div>
+
+      <section class="board-section">
+        <div class="board-header">
+          <div>
+            <h2 class="board-title" data-i18n="top20.title">Top 20 Valuation Scores</h2>
+            <p class="board-subtitle" data-i18n="top20.subtitle">Ranked by cheapness within peer groups</p>
+          </div>
+        </div>
+        <div class="rank-board" id="top20-body"></div>
+      </section>
+
+      <section class="board-section">
+        <div class="board-header">
+          <div>
+            <h2 class="board-title" data-i18n="top10.title">Top 10 Best Value</h2>
+            <p class="board-subtitle" data-i18n="top10.subtitle">Cheap price combined with quality and growth</p>
+          </div>
+        </div>
+        <div class="value-grid" id="top10-body"></div>
+      </section>
+
+      <section class="distribution-section">
+        <h2 class="board-title" data-i18n="dist.title">Where the cheap stocks are</h2>
+        <div class="distribution-grid">
+          <div class="donut-card">
+            <h3 class="donut-card-title" data-i18n="dist.by-sector">By sector</h3>
+            <div class="donut-wrap"><canvas id="donut-sector" class="donut-canvas"></canvas></div>
+            <div class="legend-box" id="sector-legend"></div>
+          </div>
+          <div class="donut-card">
+            <h3 class="donut-card-title" data-i18n="dist.by-market">By market</h3>
+            <div class="donut-wrap"><canvas id="donut-market" class="donut-canvas"></canvas></div>
+            <div class="legend-box" id="market-legend"></div>
+          </div>
+        </div>
+      </section>
+
+      <section class="insufficient-section" id="insufficient-section">
+        <h2 class="board-title" data-i18n="insufficient.title">Data unavailable</h2>
+        <p class="board-subtitle" data-i18n="insufficient.desc">These stocks returned price-only data or request failed and are excluded from ranking.</p>
+        <div class="insufficient-list" id="insufficient-list"></div>
+      </section>
+
+      <section class="method-section">
+        <button type="button" class="method-head collapsed" id="method-head">
+          <span data-i18n="method.title">How scoring works</span>
+          <span class="method-chevron">▾</span>
+        </button>
+        <div class="method-body" id="method-body">
+          <p data-i18n="method.p1"></p>
+          <p data-i18n="method.p2"></p>
+          <p data-i18n="method.p3"></p>
+          <p data-i18n="method.p4"></p>
+          <p data-i18n="method.p5"></p>
+          <p data-i18n="method.p6"></p>
+        </div>
+      </section>
+    </div>
+  </main>
+
+  <div class="drawer-overlay" id="drawer-overlay"></div>
+  <aside class="drawer" id="drawer">
+    <div class="drawer-header">
+      <div>
+        <h3 class="drawer-title" id="drawer-title"></h3>
+        <p class="drawer-sub" id="drawer-sub"></p>
+      </div>
+      <button class="drawer-close" id="drawer-close" aria-label="close">✕</button>
+    </div>
+    <div class="drawer-content">
+      <div class="drawer-scores" id="drawer-scores"></div>
+      <h4 class="drawer-section-title" data-i18n="drawer.metrics">Key metrics</h4>
+      <div class="drawer-metrics" id="drawer-metrics"></div>
+      <h4 class="drawer-section-title" data-i18n="drawer.trend">3-month trend</h4>
+      <div class="drawer-spark-wrap"><canvas id="drawer-spark" class="drawer-spark"></canvas></div>
+      <a class="btn btn-primary drawer-yahoo" id="drawer-yahoo" target="_blank" rel="noopener" data-i18n="drawer.open-yahoo">View on Yahoo Finance</a>
+    </div>
+  </aside>
+
+  <script src="js/data/universe.js"></script>
+  <script src="js/i18n.js"></script>
+  <script src="js/yahoo-client.js"></script>
+  <script src="js/scoring.js"></script>
+  <script src="js/rankings.js"></script>
+</body>
+</html>
