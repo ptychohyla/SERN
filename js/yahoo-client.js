@@ -2,36 +2,13 @@
   'use strict';
 
   window.SERN = window.SERN || {};
+  window.SERN.providers = window.SERN.providers || {};
 
-  var CACHE_TTL = 30 * 60 * 1000; // 30 minutes
+  // Raw Yahoo Finance provider: no caching, no degradation — js/market-data.js
+  // owns caching, the fallback chain and the circuit breaker.
+
   var MAX_ATTEMPTS = 3;
   var crumbPromise = null;
-
-  // -------------------- cache --------------------
-  function cacheGet(key) {
-    try {
-      var raw = sessionStorage.getItem(key);
-      if (!raw) return null;
-      var parsed = JSON.parse(raw);
-      if (Date.now() - parsed.at > CACHE_TTL) {
-        sessionStorage.removeItem(key);
-        return null;
-      }
-      return parsed.data;
-    } catch (e) {
-      return null;
-    }
-  }
-
-  function cacheSet(key, data) {
-    try {
-      sessionStorage.setItem(key, JSON.stringify({ at: Date.now(), data: data }));
-    } catch (e) { /* quota / private mode: ignore */ }
-  }
-
-  function cacheRemove(key) {
-    try { sessionStorage.removeItem(key); } catch (e) {}
-  }
 
   // -------------------- http helpers --------------------
   function delay(ms) {
@@ -149,7 +126,7 @@
       insufficient: false
     };
     if (out.pe === null) out.pe = nonNegative(raw(stats, 'trailingPE'));
-    if (out.divYield === null) out.divYield = raw(stats, 'trailingAnnualDividendYield');
+    if (out.divYield === null) out.divYield = nonNegative(raw(stats, 'trailingAnnualDividendYield'));
     return out;
   }
 
@@ -165,15 +142,12 @@
   }
 
   function getChart(symbol) {
-    var key = 'sern-chart-' + symbol;
-    var cached = cacheGet(key);
-    if (cached) return Promise.resolve(cached);
     return chartPayload(symbol, '1d', '1d').then(function (result) {
       var meta = result.meta || {};
       var price = meta.regularMarketPrice;
       var prev = meta.previousClose || meta.chartPreviousClose;
       var pct = (price !== undefined && prev) ? (price - prev) / prev : null;
-      var out = {
+      return {
         symbol: symbol,
         name: meta.shortName || meta.symbol || symbol,
         price: price,
@@ -181,15 +155,10 @@
         changePct: pct,
         currency: meta.currency || null
       };
-      cacheSet(key, out);
-      return out;
     });
   }
 
   function getSpark(symbol) {
-    var key = 'sern-spark-' + symbol;
-    var cached = cacheGet(key);
-    if (cached) return Promise.resolve(cached);
     return chartPayload(symbol, '3mo', '1d').then(function (result) {
       var closes = (result.indicators && result.indicators.quote &&
         result.indicators.quote[0] && result.indicators.quote[0].close) || [];
@@ -197,9 +166,7 @@
       for (var i = 0; i < closes.length; i++) {
         if (typeof closes[i] === 'number' && isFinite(closes[i])) points.push(closes[i]);
       }
-      var out = { symbol: symbol, points: points };
-      cacheSet(key, out);
-      return out;
+      return { symbol: symbol, points: points };
     });
   }
 
@@ -211,53 +178,17 @@
       (crumb ? '&crumb=' + encodeURIComponent(crumb) : '');
   }
 
-  function priceOnly(symbol) {
-    return getChart(symbol).then(function (chart) {
-      return {
-        symbol: symbol,
-        name: chart.name,
-        currency: chart.currency,
-        price: chart.price,
-        marketCap: null,
-        pe: null, forwardPe: null, pb: null, ps: null, evEbitda: null,
-        peg: null, divYield: null, roe: null, margin: null, fcf: null,
-        fcfYield: null, earningsGrowth: null, revenueGrowth: null,
-        debtToEquity: null,
-        insufficient: true
-      };
-    });
-  }
-
   function getQuote(symbol) {
-    var key = 'sern-quote-' + symbol;
-    var cached = cacheGet(key);
-    if (cached) return Promise.resolve(cached);
-
     return getCrumb().then(function (crumb) {
       return fetchJson(quoteSummaryUrl(symbol, crumb), 1, !!crumb, swapHost);
     }).then(function (json) {
-      var out = normalize(symbol, json);
-      cacheSet(key, out);
-      return out;
-    }).catch(function () {
-      // Fundamentals unreachable: degrade to price-only so the page never breaks.
-      return priceOnly(symbol).then(function (out) {
-        cacheSet(key, out);
-        return out;
-      });
+      return normalize(symbol, json);
     });
   }
 
-  function refreshQuote(symbol) {
-    cacheRemove('sern-quote-' + symbol);
-    cacheRemove('sern-chart-' + symbol);
-    return getQuote(symbol);
-  }
-
-  window.SERN.yahoo = {
+  window.SERN.providers.yahoo = {
     getQuote: getQuote,
     getChart: getChart,
-    getSpark: getSpark,
-    refreshQuote: refreshQuote
+    getSpark: getSpark
   };
 })();

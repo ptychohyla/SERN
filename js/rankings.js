@@ -510,7 +510,8 @@
       ['drawer.revenue-growth', fmtPct(d.revenueGrowth, 1)],
       ['drawer.debt', d.debtToEquity === null ? t('common.na') : fmt(d.debtToEquity, 1)],
       ['drawer.marketcap', fmtMarketCap(d.marketCap, d.currency)],
-      ['drawer.currency', d.currency || t('common.na')]
+      ['drawer.currency', d.currency || t('common.na')],
+      ['drawer.source', t('source.' + (d.source === 'yahoo' ? 'yahoo' : d.source === 'price' ? 'price' : 'fallback'))]
     ];
     rows.forEach(function (r) { metrics.appendChild(metricBox(t(r[0]), r[1])); });
 
