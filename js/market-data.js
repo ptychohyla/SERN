@@ -18,23 +18,31 @@
   // failures; a per-source cooldown throttles lazy fetches when a fallback
   // source itself is down.
 
-  var CACHE_TTL = 30 * 60 * 1000; // 30 minutes
   var CIRCUIT_THRESHOLD = 6;      // consecutive Yahoo quote failures
   var CIRCUIT_COOLDOWN = 30 * 1000;
   var SOURCE_DOWN_COOLDOWN = 60 * 1000;
   var FALLBACK_SOURCES = ['tencent', 'eastmoney', 'tradingview'];
 
   // -------------------- cache --------------------
-  function cacheGet(key) {
+  // Data is daily (T-1 close): persist in localStorage across sessions and
+  // expire at the next local 06:00 rollover instead of a short session TTL.
+  function lastRollover(now) {
+    var d = new Date(now);
+    d.setHours(6, 0, 0, 0);
+    if (d.getTime() > now) d.setDate(d.getDate() - 1);
+    return d.getTime();
+  }
+
+  function cacheEntry(key) {
     try {
-      var raw = sessionStorage.getItem(key);
+      var raw = localStorage.getItem(key);
       if (!raw) return null;
       var parsed = JSON.parse(raw);
-      if (Date.now() - parsed.at > CACHE_TTL) {
-        sessionStorage.removeItem(key);
+      if (!parsed || typeof parsed.at !== 'number' || parsed.at < lastRollover(Date.now())) {
+        if (parsed) cacheRemove(key);
         return null;
       }
-      return parsed.data;
+      return parsed;
     } catch (e) {
       return null;
     }
@@ -42,12 +50,38 @@
 
   function cacheSet(key, data) {
     try {
-      sessionStorage.setItem(key, JSON.stringify({ at: Date.now(), data: data }));
+      localStorage.setItem(key, JSON.stringify({ at: Date.now(), data: data }));
     } catch (e) { /* quota / private mode: ignore */ }
   }
 
   function cacheRemove(key) {
-    try { sessionStorage.removeItem(key); } catch (e) {}
+    try { localStorage.removeItem(key); } catch (e) {}
+  }
+
+  var DATA_KEY_PREFIXES = ['sern-quote-', 'sern-chart-', 'sern-spark-'];
+
+  // Force refresh: wipe every data cache (but never user preferences),
+  // clear in-memory snapshots and the circuit breaker, then re-warm.
+  function clearCache() {
+    try {
+      var toRemove = [];
+      for (var i = 0; i < localStorage.length; i++) {
+        var k = localStorage.key(i);
+        if (!k) continue;
+        for (var j = 0; j < DATA_KEY_PREFIXES.length; j++) {
+          if (k.indexOf(DATA_KEY_PREFIXES[j]) === 0) {
+            toRemove.push(k);
+            break;
+          }
+        }
+      }
+      toRemove.forEach(function (k) { localStorage.removeItem(k); });
+    } catch (e) {}
+    txSnapshots = {};
+    emSnapshots = {};
+    tvSnapshots = {};
+    resetCircuit();
+    return prefetch();
   }
 
   // -------------------- circuit breaker (quote chain) --------------------
@@ -441,8 +475,12 @@
   // -------------------- public API --------------------
   function getQuote(symbol) {
     var key = 'sern-quote-' + symbol;
-    var cached = cacheGet(key);
-    if (cached) return Promise.resolve(cached);
+    var hit = cacheEntry(key);
+    if (hit) {
+      // surface the real cache time so the UI can show data freshness
+      hit.data.cachedAt = hit.at;
+      return Promise.resolve(hit.data);
+    }
     var done = function (q) { cacheSet(key, q); return q; };
 
     var wasOpen = circuitOpen();
@@ -486,8 +524,8 @@
 
   function getChart(symbol) {
     var key = 'sern-chart-' + symbol;
-    var cached = cacheGet(key);
-    if (cached) return Promise.resolve(cached);
+    var hit = cacheEntry(key);
+    if (hit) return Promise.resolve(hit.data);
     return yahooDirect.getChart(symbol).then(function (out) {
       out.source = 'yahoo';
       cacheSet(key, out);
@@ -516,9 +554,9 @@
             });
           }
         });
-        var hit = cacheGet(key);
+        var hit = cacheEntry(key);
         if (!hit) throw new Error('index missing in eastmoney batch');
-        return hit;
+        return hit.data;
       });
     });
   }
@@ -544,8 +582,8 @@
 
   function getSpark(symbol) {
     var key = 'sern-spark-' + symbol;
-    var cached = cacheGet(key);
-    if (cached) return Promise.resolve(cached);
+    var hit = cacheEntry(key);
+    if (hit) return Promise.resolve(hit.data);
     return yahooDirect.getSpark(symbol).then(function (out) {
       out.source = 'yahoo';
       cacheSet(key, out);
@@ -624,6 +662,7 @@
     getChart: getChart,
     getSpark: getSpark,
     refreshQuote: refreshQuote,
+    clearCache: clearCache,
     prefetch: prefetch
   };
 })();

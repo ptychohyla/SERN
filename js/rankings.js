@@ -135,6 +135,15 @@
     // callers — retries and overlapping reloads cannot double-count
     state.done = state.entries.filter(function (e) { return e.status === 'done'; }).length;
     state.failed = state.entries.filter(function (e) { return e.status === 'failed'; }).length;
+    // data timestamp = oldest source fetch/cache time across done entries —
+    // with a persistent cache, "loaded just now" must not masquerade as fresh
+    var dataAt = null;
+    state.entries.forEach(function (e) {
+      if (e.status !== 'done' || !e.data) return;
+      var t0 = e.data.cachedAt || state.loadStartedAt || Date.now();
+      if (dataAt === null || t0 < dataAt) dataAt = t0;
+    });
+    state.dataAt = dataAt;
     var bar = document.getElementById('progress-bar');
     var label = document.getElementById('progress-label');
     var total = state.entries.length;
@@ -146,7 +155,7 @@
     } else {
       label.textContent = t('freshness.done') + ' · ' + t('freshness.completed') + ' ' + state.done +
         '/' + total + ' · ' + t('freshness.failed') + ' ' + state.failed +
-        (state.updatedAt ? ' · ' + t('freshness.updated') + ' ' + fmtTime(state.updatedAt) : '');
+        (state.dataAt ? ' · ' + t('freshness.updated') + ' ' + fmtTime(state.dataAt) : '');
     }
   }
 
@@ -616,6 +625,7 @@
     state.done = 0;
     state.failed = 0;
     state.loading = true;
+    state.loadStartedAt = Date.now();
 
     var tasks = state.entries.map(function (entry) {
       return function () { return loadEntry(entry); };
@@ -680,14 +690,9 @@
       Promise.all(targets.map(retryEntry)).then(refreshAllViews);
     });
 
-    // refresh all: clear caches then reload
+    // force refresh: wipe all data caches (prefs kept), re-warm, reload
     document.getElementById('refresh-btn').addEventListener('click', function () {
-      try {
-        Object.keys(sessionStorage).forEach(function (k) {
-          if (k.indexOf('sern-') === 0) sessionStorage.removeItem(k);
-        });
-      } catch (e) {}
-      startLoading();
+      yahoo.clearCache().then(function () { startLoading(); });
     });
 
     // language toggle
