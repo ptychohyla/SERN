@@ -103,11 +103,15 @@
 
     var marketCap = raw(price, 'marketCap');
     var fcf = raw(fin, 'freeCashflow');
+    var p = raw(price, 'regularMarketPrice');
+    var prev = raw(price, 'regularMarketPreviousClose');
     var out = {
       symbol: symbol,
       name: price.longName || price.shortName || symbol,
       currency: price.currency || null,
-      price: raw(price, 'regularMarketPrice'),
+      price: p,
+      // self-consistent: both legs from the same source, never mixed
+      changePct: (p !== null && prev) ? (p - prev) / prev : null,
       marketCap: marketCap,
       pe: nonNegative(raw(detail, 'trailingPE')),
       forwardPe: nonNegative(raw(stats, 'forwardPE')),

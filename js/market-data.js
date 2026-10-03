@@ -111,7 +111,7 @@
       symbol: symbol,
       name: universeName(symbol),
       currency: currencyFor(symbol),
-      price: null, marketCap: null,
+      price: null, marketCap: null, changePct: null,
       pe: null, forwardPe: null, pb: null, ps: null, evEbitda: null,
       peg: null, divYield: null, roe: null, margin: null, fcf: null,
       fcfYield: null, earningsGrowth: null, revenueGrowth: null,
@@ -209,6 +209,10 @@
     var q = emptyQuote(symbol);
     q.source = 'tencent';
     q.price = snap.price;
+    // changePct is always computed within one source — mixing a price from
+    // one provider with a previous close from another yields garbage
+    q.changePct = (snap.price !== null && snap.prevClose)
+      ? (snap.price - snap.prevClose) / snap.prevClose : null;
     q.pe = nonNeg(snap.pe);
     q.pb = nonNeg(snap.pb);
     q.ps = nonNeg(snap.ps);
@@ -273,6 +277,7 @@
     var q = emptyQuote(symbol);
     q.source = 'eastmoney';
     q.price = row.price;
+    q.changePct = row.changePct;
     q.pe = nonNeg(row.peTtm);
     q.pb = nonNeg(row.pb);
     q.marketCap = row.marketCap;
@@ -371,8 +376,10 @@
   }
 
   // -------------------- field-level backfill --------------------
-  // Every field a fallback source can possibly supply.
-  var FILL_KEYS = ['price', 'marketCap', 'pe', 'forwardPe', 'pb', 'ps',
+  // Every field a fallback source can possibly supply. changePct is
+  // source-self-consistent by construction (see txQuote), prevClose is
+  // deliberately NOT here: mixing it with another source's price is garbage.
+  var FILL_KEYS = ['price', 'marketCap', 'changePct', 'pe', 'forwardPe', 'pb', 'ps',
     'evEbitda', 'peg', 'divYield', 'roe', 'margin', 'fcf', 'fcfYield',
     'earningsGrowth', 'revenueGrowth', 'debtToEquity'];
 

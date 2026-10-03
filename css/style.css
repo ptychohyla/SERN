@@ -1381,6 +1381,74 @@ body {
 .drawer-spark { width: 100%; height: 130px; display: block; }
 .drawer-yahoo { margin-top: 24px; width: 100%; }
 
+/* ---------- Heatmap ---------- */
+.heatmap-section { margin-bottom: 48px; }
+.heatmap-header {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+.heat-seg button { padding: 6px 14px; font-size: 0.78rem; }
+.heatmap {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 14px;
+  margin-top: 18px;
+}
+.heat-group {
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  padding: 16px 18px;
+}
+.heat-group-title {
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: var(--text-secondary);
+  margin-bottom: 10px;
+}
+.heat-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.heat-tile {
+  min-width: 74px;
+  padding: 6px 8px;
+  border-radius: 6px;
+  text-align: center;
+  cursor: pointer;
+  border: 1px solid transparent;
+  transition: transform 0.15s ease, border-color 0.15s ease;
+  color: #f8fafc;
+}
+.heat-tile:hover {
+  border-color: var(--border-glow);
+  transform: translateY(-1px);
+}
+.heat-symbol { font-size: 0.72rem; font-weight: 700; letter-spacing: 0.01em; }
+.heat-value { font-size: 0.72rem; opacity: 0.92; margin-top: 1px; }
+
+/* change mode bands: red up / green down (CN convention) */
+.heat-up-3 { background: rgba(239, 68, 68, 0.95); }
+.heat-up-2 { background: rgba(239, 68, 68, 0.6); }
+.heat-up-1 { background: rgba(239, 68, 68, 0.32); }
+.heat-flat { background: rgba(255, 255, 255, 0.07); color: var(--text-secondary); }
+.heat-down-1 { background: rgba(34, 197, 94, 0.32); }
+.heat-down-2 { background: rgba(34, 197, 94, 0.6); }
+.heat-down-3 { background: rgba(34, 197, 94, 0.95); }
+
+/* score mode bands: green = cheap */
+.heat-s-4 { background: rgba(34, 197, 94, 0.95); }
+.heat-s-3 { background: rgba(34, 197, 94, 0.6); }
+.heat-s-2 { background: rgba(34, 197, 94, 0.3); }
+.heat-s-1 { background: rgba(234, 179, 8, 0.4); }
+.heat-s-0 { background: rgba(239, 68, 68, 0.55); }
+
+.heat-na { background: rgba(255, 255, 255, 0.04); color: var(--text-muted); }
+
 /* ---------- Rankings responsive ---------- */
 @media (max-width: 900px) {
   .rank-row {
@@ -1395,6 +1463,12 @@ body {
   .rank-row .rank-score-composite { display: none; }
   .value-grid { grid-template-columns: 1fr; }
   .distribution-grid { grid-template-columns: 1fr; }
+  .heatmap { grid-template-columns: 1fr; }
+}
+
+@media (max-width: 640px) {
+  .heat-tile { min-width: 62px; padding: 5px 6px; }
+  .heat-grid { gap: 5px; }
 }
 
 @media (max-width: 640px) {

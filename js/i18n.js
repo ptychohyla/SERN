@@ -52,6 +52,11 @@
       'score.quality': 'Quality',
       'score.growth': 'Growth',
 
+      'heat.title': 'Market Heatmap',
+      'heat.subtitle': 'Daily move and valuation score across the tracked universe',
+      'heat.mode-change': 'Change %',
+      'heat.mode-score': 'Valuation',
+
       'dist.title': 'Where the cheap stocks are',
       'dist.by-sector': 'By sector',
       'dist.by-market': 'By market',
@@ -167,6 +172,11 @@
       'score.valuation': '估值',
       'score.quality': '质量',
       'score.growth': '成长',
+
+      'heat.title': '市场热力图',
+      'heat.subtitle': '全池股票的当日涨跌与估值得分一览',
+      'heat.mode-change': '涨跌幅',
+      'heat.mode-score': '估值得分',
 
       'dist.title': '便宜股票集中在哪里',
       'dist.by-sector': '按行业',

@@ -69,6 +69,20 @@
         </div>
       </div>
 
+      <section class="heatmap-section">
+        <div class="board-header heatmap-header">
+          <div>
+            <h2 class="board-title" data-i18n="heat.title">Market Heatmap</h2>
+            <p class="board-subtitle" data-i18n="heat.subtitle">Daily move and valuation score across the tracked universe</p>
+          </div>
+          <div class="model-seg heat-seg" id="heat-seg" role="group" aria-label="heatmap mode">
+            <button type="button" data-heat="change" data-i18n="heat.mode-change">Change %</button>
+            <button type="button" data-heat="score" data-i18n="heat.mode-score">Valuation</button>
+          </div>
+        </div>
+        <div class="heatmap" id="heatmap-body"></div>
+      </section>
+
       <section class="board-section">
         <div class="board-header">
           <div>
@@ -152,6 +166,7 @@
   <script src="js/yahoo-client.js"></script>
   <script src="js/market-data.js"></script>
   <script src="js/scoring.js"></script>
+  <script src="js/heatmap.js"></script>
   <script src="js/rankings.js"></script>
 </body>
 </html>

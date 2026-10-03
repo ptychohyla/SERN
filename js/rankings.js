@@ -20,6 +20,8 @@
   var MARKET_COLORS = { US: '#3b82f6', CN: '#ef4444', HK: '#f97316', JP: '#22c55e', KR: '#06b6d4', TW: '#eab308', EU: '#a855f7' };
 
   // ==================== State ====================
+  var HEAT_MODES = ['change', 'score'];
+  var savedHeatMode = localStorage.getItem('sern-heat-mode');
   var state = {
     model: localStorage.getItem('sern-model') || 'multifactor',
     entries: [],
@@ -29,7 +31,8 @@
     watchOnly: false,
     scores: null,
     updatedAt: null,
-    drawerSymbol: null
+    drawerSymbol: null,
+    heatMode: HEAT_MODES.indexOf(savedHeatMode) !== -1 ? savedHeatMode : 'change'
   };
 
   function getWatchlist() {
@@ -585,11 +588,25 @@
     });
   }
 
+  function renderHeatmap() {
+    if (!window.SERN.heatmap) return;
+    window.SERN.heatmap.render(document.getElementById('heatmap-body'), {
+      entries: state.entries,
+      mode: state.heatMode,
+      watchOnly: state.watchOnly,
+      isWatched: isWatched,
+      t: t,
+      langName: langName,
+      onSelect: openDrawer
+    });
+  }
+
   function refreshAllViews() {
     state.scores = scoring.computeScores(state.entries, state.model);
     updateFreshness();
     renderBoards();
     renderInsufficient();
+    renderHeatmap();
   }
 
   function startLoading() {
@@ -633,12 +650,26 @@
       });
     });
 
+    // heatmap mode switch
+    var heatSeg = document.getElementById('heat-seg');
+    heatSeg.querySelectorAll('button').forEach(function (btn) {
+      if (btn.dataset.heat === state.heatMode) btn.classList.add('active');
+      btn.addEventListener('click', function () {
+        state.heatMode = btn.dataset.heat;
+        localStorage.setItem('sern-heat-mode', state.heatMode);
+        heatSeg.querySelectorAll('button').forEach(function (b) { b.classList.remove('active'); });
+        btn.classList.add('active');
+        renderHeatmap();
+      });
+    });
+
     // watchlist filter
     var filter = document.getElementById('watch-filter');
     filter.checked = state.watchOnly;
     filter.addEventListener('change', function () {
       state.watchOnly = filter.checked;
       renderBoards();
+      renderHeatmap();
     });
 
     // retry failed
