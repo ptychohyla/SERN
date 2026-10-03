@@ -511,7 +511,8 @@
       ['drawer.debt', d.debtToEquity === null ? t('common.na') : fmt(d.debtToEquity, 1)],
       ['drawer.marketcap', fmtMarketCap(d.marketCap, d.currency)],
       ['drawer.currency', d.currency || t('common.na')],
-      ['drawer.source', t('source.' + (d.source || 'yahoo'))]
+      ['drawer.source', (d.sources && d.sources.length ? d.sources : [d.source || 'yahoo'])
+        .map(function (s) { return t('source.' + s); }).join(' + ')]
     ];
     rows.forEach(function (r) { metrics.appendChild(metricBox(t(r[0]), r[1])); });
 

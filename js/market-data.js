@@ -8,16 +8,20 @@
   // rankings page has always consumed (window.SERN.yahoo):
   //   getQuote / getChart / getSpark / refreshQuote
   //
-  // Strict sequential fallback per stock — sources are tried one by one in
-  // priority order and NEVER merged into a single quote:
-  //   Yahoo (full fundamentals) -> Tencent -> Eastmoney -> TradingView
-  // A source counts as failed when the request fails or when it yields fewer
-  // than two valuation metrics (too little to rank). A circuit breaker
-  // short-circuits Yahoo after repeated failures.
+  // Field-level fallback: sources are scanned in priority order
+  //   Yahoo -> Tencent -> Eastmoney -> TradingView
+  // and each source fills ONLY the fields still missing — a value already
+  // fetched from a higher-priority source is never overwritten. This applies
+  // both when Yahoo fails outright (lazy walk) and when Yahoo succeeds but
+  // individual metrics are null (peek at warmed snapshots only, no extra
+  // requests). A circuit breaker short-circuits Yahoo after repeated
+  // failures; a per-source cooldown throttles lazy fetches when a fallback
+  // source itself is down.
 
   var CACHE_TTL = 30 * 60 * 1000; // 30 minutes
   var CIRCUIT_THRESHOLD = 6;      // consecutive Yahoo quote failures
   var CIRCUIT_COOLDOWN = 30 * 1000;
+  var SOURCE_DOWN_COOLDOWN = 60 * 1000;
   var FALLBACK_SOURCES = ['tencent', 'eastmoney', 'tradingview'];
 
   // -------------------- cache --------------------
@@ -67,6 +71,11 @@
     yahooFailures = 0;
     circuitOpenUntil = 0;
   }
+
+  // -------------------- per-source cooldown (lazy fetch throttle) --------------------
+  var sourceDownUntil = { tencent: 0, eastmoney: 0, tradingview: 0 };
+  function markDown(src) { sourceDownUntil[src] = Date.now() + SOURCE_DOWN_COOLDOWN; }
+  function isDown(src) { return Date.now() < sourceDownUntil[src]; }
 
   // -------------------- shared helpers --------------------
   function num(x) {
@@ -178,7 +187,7 @@
         if (snap) out[m[1]] = snap;
       }
       return out;
-    });
+    }).catch(function (e) { markDown('tencent'); throw e; });
   }
 
   function mergeTx(map) {
@@ -189,6 +198,7 @@
     var code = txCode(symbol);
     if (!code) return Promise.resolve(null);
     if (txSnapshots[code]) return Promise.resolve(txSnapshots[code]);
+    if (isDown('tencent')) return Promise.resolve(null);
     return fetchTx([code]).then(function (map) {
       mergeTx(map);
       return txSnapshots[code] || null;
@@ -235,7 +245,7 @@
       var json = JSON.parse(text);
       if (!json || json.rc !== 0 || !json.data) throw new Error('eastmoney rc ' + (json && json.rc));
       return json.data.diff || [];
-    });
+    }).catch(function (e) { markDown('eastmoney'); throw e; });
   }
 
   function emQuoteRow(row) {
@@ -252,6 +262,7 @@
     var secid = emSecid(symbol);
     if (!secid) return Promise.resolve(null);
     if (emSnapshots[secid]) return Promise.resolve(emSnapshots[secid]);
+    if (isDown('eastmoney')) return Promise.resolve(null);
     return emFetchUlist([secid], 'f2,f3,f12,f14,f116,f162,f167').then(function (diff) {
       if (diff[0]) emSnapshots[secid] = emQuoteRow(diff[0]);
       return emSnapshots[secid] || null;
@@ -319,7 +330,7 @@
         if (row && row.s && row.d) out[row.s] = row.d;
       });
       return out;
-    });
+    }).catch(function (e) { markDown('tradingview'); throw e; });
   }
 
   function mergeTv(map) {
@@ -332,6 +343,7 @@
     for (var i = 0; i < cands.length; i++) {
       if (tvSnapshots[cands[i]]) return Promise.resolve(tvSnapshots[cands[i]]);
     }
+    if (isDown('tradingview')) return Promise.resolve(null);
     return fetchTv(cands).then(function (map) {
       mergeTv(map);
       for (var i = 0; i < cands.length; i++) {
@@ -358,31 +370,65 @@
     return q;
   }
 
-  // -------------------- sequential fallback --------------------
-  function quoteFrom(source, symbol) {
+  // -------------------- field-level backfill --------------------
+  // Every field a fallback source can possibly supply.
+  var FILL_KEYS = ['price', 'marketCap', 'pe', 'forwardPe', 'pb', 'ps',
+    'evEbitda', 'peg', 'divYield', 'roe', 'margin', 'fcf', 'fcfYield',
+    'earningsGrowth', 'revenueGrowth', 'debtToEquity'];
+
+  function fillFrom(q, partial, source, contributors) {
+    if (!partial) return;
+    var added = false;
+    FILL_KEYS.forEach(function (k) {
+      if (q[k] === null && partial[k] !== null && partial[k] !== undefined) {
+        q[k] = partial[k];
+        added = true;
+      }
+    });
+    if (added && contributors.indexOf(source) === -1) contributors.push(source);
+  }
+
+  function quoteFrom(source, symbol, lazy) {
     if (source === 'tencent') {
+      if (!lazy) {
+        var c = txCode(symbol);
+        var snap = c && txSnapshots[c];
+        return Promise.resolve(snap ? txQuote(symbol, snap) : null);
+      }
       return ensureTx(symbol).then(function (s) { return s ? txQuote(symbol, s) : null; });
     }
     if (source === 'eastmoney') {
+      if (!lazy) {
+        var id = emSecid(symbol);
+        var row = id && emSnapshots[id];
+        return Promise.resolve(row ? emQuote(symbol, row) : null);
+      }
       return ensureEm(symbol).then(function (s) { return s ? emQuote(symbol, s) : null; });
+    }
+    if (!lazy) {
+      var cands = tvCandidates(symbol);
+      for (var i = 0; i < cands.length; i++) {
+        if (tvSnapshots[cands[i]]) return Promise.resolve(tvQuote(symbol, tvSnapshots[cands[i]]));
+      }
+      return Promise.resolve(null);
     }
     return ensureTv(symbol).then(function (d) { return d ? tvQuote(symbol, d) : null; });
   }
 
-  // Walk FALLBACK_SOURCES in order. First quote with >=2 valuation metrics
-  // wins. Otherwise the first quote that has any price becomes the
-  // price-only (insufficient) result; if nothing has a price, null.
-  function fallbackQuote(symbol, index, priceOnly) {
-    if (index >= FALLBACK_SOURCES.length) return Promise.resolve(priceOnly);
-    return quoteFrom(FALLBACK_SOURCES[index], symbol).then(function (q) {
-      if (q && valuationKeyCount(q) >= 2) return q;
-      if (!priceOnly && q && q.price !== null) {
-        q.insufficient = true;
-        q.source = 'price';
-        priceOnly = q;
-      }
-      return fallbackQuote(symbol, index + 1, priceOnly);
+  // Scan FALLBACK_SOURCES in priority order, filling only null fields of q.
+  // lazy=false reads warmed snapshots only (used after a successful Yahoo
+  // quote, so the happy path never fires extra requests); lazy=true allows
+  // on-demand fetches (used when Yahoo itself failed).
+  function backfill(q, contributors, lazy) {
+    var chain = Promise.resolve();
+    FALLBACK_SOURCES.forEach(function (src) {
+      chain = chain.then(function () {
+        return quoteFrom(src, q.symbol, lazy).then(function (partial) {
+          fillFrom(q, partial, src, contributors);
+        });
+      });
     });
+    return chain.then(function () { return q; });
   }
 
   // -------------------- public API --------------------
@@ -400,12 +446,28 @@
     return yahooAttempt.then(function (q) {
       recordYahooSuccess();
       q.source = 'yahoo';
-      return done(q);
+      var contributors = ['yahoo'];
+      return backfill(q, contributors, false).then(function (filled) {
+        filled.sources = contributors;
+        return done(filled);
+      });
     }, function () {
       if (!wasOpen) recordYahooFailure();
-      return fallbackQuote(symbol, 0, null).then(function (q) {
-        if (!q) throw new Error('all sources failed for ' + symbol);
-        return done(q);
+      var q = emptyQuote(symbol);
+      var contributors = [];
+      return backfill(q, contributors, true).then(function (filled) {
+        if (valuationKeyCount(filled) >= 2) {
+          filled.source = contributors[0] || null;
+          filled.sources = contributors;
+          return done(filled);
+        }
+        if (filled.price !== null) {
+          filled.insufficient = true;
+          filled.source = 'price';
+          filled.sources = contributors;
+          return done(filled);
+        }
+        throw new Error('all sources failed for ' + symbol);
       });
     });
   }
