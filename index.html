@@ -7,7 +7,10 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="css/style.css">
+  <link rel="stylesheet" href="css/style.css?v=20261004">
+  <link rel="icon" type="image/svg+xml" href="favicon.svg?v=20261004">
+  <link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png?v=20261004">
+  <link rel="apple-touch-icon" href="apple-touch-icon.png?v=20261004">
 </head>
 <body>
   <canvas id="particle-canvas" class="particle-canvas"></canvas>
@@ -19,22 +22,28 @@
     <div class="container nav-container">
       <a href="#" class="logo">
         <span class="logo-icon">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-            <line x1="3" y1="12" x2="21" y2="12"></line>
-            <line x1="3" y1="6" x2="21" y2="6"></line>
-            <line x1="3" y1="18" x2="21" y2="18"></line>
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="4,17 9,10 13,13.5 20,5"></polyline>
+            <circle cx="20" cy="5" r="1.8" fill="currentColor" stroke="none"></circle>
           </svg>
         </span>
         <span class="logo-text">SERN FinTech</span>
       </a>
-      <ul class="nav-links">
-        <li><a href="rankings.html">Rankings</a></li>
+      <ul class="nav-links" id="nav-links">
+        <li><a href="markets.html">Markets</a></li>
         <li><a href="#products">Products</a></li>
         <li><a href="#research">Research</a></li>
         <li><a href="#technology">Technology</a></li>
         <li><a href="#about">About</a></li>
         <li><a href="mailto:hinsyeow@outlook.com">Contact</a></li>
       </ul>
+      <button type="button" class="nav-toggle" id="nav-toggle" aria-expanded="false" aria-controls="nav-links" aria-label="Menu">
+        <span class="nav-toggle-box" aria-hidden="true">
+          <span class="nav-toggle-line"></span>
+          <span class="nav-toggle-line"></span>
+          <span class="nav-toggle-line"></span>
+        </span>
+      </button>
     </div>
   </nav>
 
@@ -237,10 +246,9 @@
             <div class="footer-brand">
               <a href="#" class="logo">
                 <span class="logo-icon">
-                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-                    <line x1="3" y1="12" x2="21" y2="12"></line>
-                    <line x1="3" y1="6" x2="21" y2="6"></line>
-                    <line x1="3" y1="18" x2="21" y2="18"></line>
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                    <polyline points="4,17 9,10 13,13.5 20,5"></polyline>
+                    <circle cx="20" cy="5" r="1.8" fill="currentColor" stroke="none"></circle>
                   </svg>
                 </span>
                 <span class="logo-text">SERN FinTech</span>
@@ -280,6 +288,7 @@
     </footer>
   </div>
 
-  <script src="js/script.js"></script>
+  <script src="js/nav.js?v=20261004"></script>
+  <script src="js/script.js?v=20261004"></script>
 </body>
 </html>
