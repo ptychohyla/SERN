@@ -3,13 +3,16 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>SERN FinTech - Stock Rankings</title>
+  <title>SERN FinTech - Markets</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="css/style.css">
+  <link rel="stylesheet" href="css/style.css?v=20261004">
+  <link rel="icon" type="image/svg+xml" href="favicon.svg?v=20261004">
+  <link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png?v=20261004">
+  <link rel="apple-touch-icon" href="apple-touch-icon.png?v=20261004">
 </head>
-<body class="rankings-page">
+<body class="markets-page">
   <canvas id="particle-canvas" class="particle-canvas"></canvas>
   <div class="bg-grid"></div>
   <div class="bg-glow"></div>
@@ -18,35 +21,42 @@
     <div class="container nav-container">
       <a href="index.html" class="logo">
         <span class="logo-icon">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-            <line x1="3" y1="12" x2="21" y2="12"></line>
-            <line x1="3" y1="6" x2="21" y2="6"></line>
-            <line x1="3" y1="18" x2="21" y2="18"></line>
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="4,17 9,10 13,13.5 20,5"></polyline>
+            <circle cx="20" cy="5" r="1.8" fill="currentColor" stroke="none"></circle>
           </svg>
         </span>
         <span class="logo-text">SERN FinTech</span>
       </a>
-      <ul class="nav-links">
+      <ul class="nav-links" id="nav-links">
         <li><a href="index.html" data-i18n="nav.home">Home</a></li>
-        <li><a href="rankings.html" class="active" data-i18n="nav.rankings">Rankings</a></li>
+        <li><a href="markets.html" class="active" data-i18n="nav.markets">Markets</a></li>
         <li><a href="index.html#products" data-i18n="nav.products">Products</a></li>
         <li><a href="index.html#research" data-i18n="nav.research">Research</a></li>
         <li><a href="mailto:hinsyeow@outlook.com" data-i18n="nav.contact">Contact</a></li>
       </ul>
-      <button id="lang-toggle" class="lang-toggle">中文</button>
+      <button type="button" class="nav-toggle" id="nav-toggle" aria-expanded="false" aria-controls="nav-links" aria-label="Menu">
+        <span class="nav-toggle-box" aria-hidden="true">
+          <span class="nav-toggle-line"></span>
+          <span class="nav-toggle-line"></span>
+          <span class="nav-toggle-line"></span>
+        </span>
+      </button>
+      <!-- 语言切换暂时下线，默认英文（i18n.js 同步强制 en；恢复时取消注释即可）
+      <button id="lang-toggle" class="lang-toggle">中文</button> -->
     </div>
   </nav>
 
-  <main class="rankings-main">
+  <main class="markets-main">
     <div class="container">
-      <header class="rankings-header">
-        <h1 class="rankings-title" data-i18n="page.title">Global Valuation Rankings</h1>
-        <p class="rankings-subtitle" data-i18n="page.subtitle">Real-time multi-factor screening across global industry leaders, powered by Yahoo Finance data</p>
+      <header class="markets-header">
+        <h1 class="markets-title" data-i18n="page.title">Global Markets</h1>
+        <p class="markets-subtitle" data-i18n="page.subtitle">Real-time multi-factor screening across global industry leaders, powered by multi-source market data</p>
       </header>
 
       <div class="ticker-strip" id="index-ticker"></div>
 
-      <div class="rankings-panel">
+      <div class="markets-panel">
         <div class="panel-row">
           <div class="model-seg" id="model-seg" role="group" aria-label="model">
             <button type="button" data-model="multifactor" data-i18n="model.multifactor">Multi-Factor</button>
@@ -161,12 +171,13 @@
     </div>
   </aside>
 
-  <script src="js/data/universe.js"></script>
-  <script src="js/i18n.js"></script>
-  <script src="js/yahoo-client.js"></script>
-  <script src="js/market-data.js"></script>
-  <script src="js/scoring.js"></script>
-  <script src="js/heatmap.js"></script>
-  <script src="js/rankings.js"></script>
+  <script src="js/data/universe.js?v=20261004"></script>
+  <script src="js/i18n.js?v=20261004"></script>
+  <script src="js/nav.js?v=20261004"></script>
+  <script src="js/yahoo-client.js?v=20261004"></script>
+  <script src="js/market-data.js?v=20261004"></script>
+  <script src="js/scoring.js?v=20261004"></script>
+  <script src="js/heatmap.js?v=20261004"></script>
+  <script src="js/markets.js?v=20261004"></script>
 </body>
 </html>

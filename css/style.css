@@ -809,7 +809,7 @@ body {
 }
 
 /* ============================================================
-   Rankings Page
+   Markets Page
    ============================================================ */
 
 /* ---------- Language toggle ---------- */
@@ -844,16 +844,16 @@ body {
 }
 
 /* ---------- Layout ---------- */
-.rankings-main {
+.markets-main {
   position: relative;
   z-index: 1;
   padding: 120px 0 80px;
 }
-.rankings-header {
+.markets-header {
   text-align: center;
   margin-bottom: 32px;
 }
-.rankings-title {
+.markets-title {
   font-size: 2.4rem;
   font-weight: 800;
   letter-spacing: -0.02em;
@@ -862,7 +862,7 @@ body {
   background-clip: text;
   -webkit-text-fill-color: transparent;
 }
-.rankings-subtitle {
+.markets-subtitle {
   margin-top: 10px;
   color: var(--text-secondary);
   font-size: 0.98rem;
@@ -896,7 +896,7 @@ body {
 .ticker-na { color: var(--text-muted); }
 
 /* ---------- Control panel ---------- */
-.rankings-panel {
+.markets-panel {
   background: var(--bg-card);
   border: 1px solid var(--border-color);
   border-radius: 12px;
@@ -1449,7 +1449,7 @@ body {
 
 .heat-na { background: rgba(255, 255, 255, 0.04); color: var(--text-muted); }
 
-/* ---------- Rankings responsive ---------- */
+/* ---------- Markets responsive ---------- */
 @media (max-width: 900px) {
   .rank-row {
     grid-template-columns: 40px minmax(140px, 1fr) auto 52px;
@@ -1472,10 +1472,10 @@ body {
 }
 
 @media (max-width: 640px) {
-  .rankings-main { padding: 104px 0 60px; }
-  .rankings-title { font-size: 1.7rem; }
-  .rankings-subtitle { font-size: 0.86rem; }
-  .rankings-panel { padding: 14px 16px; }
+  .markets-main { padding: 104px 0 60px; }
+  .markets-title { font-size: 1.7rem; }
+  .markets-subtitle { font-size: 0.86rem; }
+  .markets-panel { padding: 14px 16px; }
   .model-seg { width: 100%; }
   .model-seg button { flex: 1; padding: 8px 6px; font-size: 0.76rem; }
   .progress-row { flex-wrap: wrap; }

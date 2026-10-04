@@ -6,7 +6,7 @@
   // Market heatmap: sector-grouped tile wall over the whole tracked universe.
   // Two color modes — daily change % (red up / green down, CN convention)
   // and valuation score (green = cheap); tiles with no data render gray.
-  // Pure renderer: rankings.js owns state and calls render() on every refresh.
+  // Pure renderer: markets.js owns state and calls render() on every refresh.
 
   function changeClass(pct) {
     if (pct === null || pct === undefined || !isFinite(pct)) return 'heat-na';

@@ -6,7 +6,8 @@
   var dict = {
     en: {
       'nav.home': 'Home',
-      'nav.rankings': 'Rankings',
+      'nav.markets': 'Markets',
+      'nav.menu': 'Menu',
       'nav.products': 'Products',
       'nav.research': 'Research',
       'nav.technology': 'Technology',
@@ -14,8 +15,8 @@
       'nav.contact': 'Contact',
       'lang.label': '中文',
 
-      'page.title': 'Global Valuation Rankings',
-      'page.subtitle': 'Real-time multi-factor screening across global industry leaders, powered by Yahoo Finance data',
+      'page.title': 'Global Markets',
+      'page.subtitle': 'Real-time multi-factor screening across global industry leaders, powered by multi-source market data',
 
       'freshness.loading': 'Loading market data…',
       'freshness.done': 'Data loaded',
@@ -129,7 +130,8 @@
 
     zh: {
       'nav.home': '首页',
-      'nav.rankings': '选股榜',
+      'nav.markets': '市场',
+      'nav.menu': '菜单',
       'nav.products': '产品',
       'nav.research': '研究',
       'nav.technology': '技术',
@@ -137,8 +139,8 @@
       'nav.contact': '联系',
       'lang.label': 'EN',
 
-      'page.title': '全球估值榜单',
-      'page.subtitle': '基于 Yahoo Finance 实时数据，对全球行业龙头进行多因子筛选打分',
+      'page.title': '全球市场',
+      'page.subtitle': '基于多数据源实时行情，对全球行业龙头进行多因子筛选打分',
 
       'freshness.loading': '正在加载市场数据…',
       'freshness.done': '数据加载完成',
@@ -251,10 +253,13 @@
     }
   };
 
-  var lang = localStorage.getItem('sern-lang');
-  if (!lang) {
-    lang = (navigator.language || 'en').toLowerCase().indexOf('zh') === 0 ? 'zh' : 'en';
-  }
+  // Language toggle temporarily disabled: default to English.
+  // Restore the detection below together with the #lang-toggle button.
+  // var lang = localStorage.getItem('sern-lang');
+  // if (!lang) {
+  //   lang = (navigator.language || 'en').toLowerCase().indexOf('zh') === 0 ? 'zh' : 'en';
+  // }
+  var lang = 'en';
   var listeners = [];
 
   function t(key) {

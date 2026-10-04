@@ -695,12 +695,15 @@
       yahoo.clearCache().then(function () { startLoading(); });
     });
 
-    // language toggle
+    // language toggle (button temporarily hidden in markup; guard keeps
+    // this working unchanged if it is re-enabled)
     var langBtn = document.getElementById('lang-toggle');
-    langBtn.textContent = t('lang.label');
-    langBtn.addEventListener('click', function () {
-      i18n.toggle();
-    });
+    if (langBtn) {
+      langBtn.textContent = t('lang.label');
+      langBtn.addEventListener('click', function () {
+        i18n.toggle();
+      });
+    }
 
     // methodology collapse
     var methodHead = document.getElementById('method-head');
@@ -732,7 +735,8 @@
     i18n.onChange(function () {
       i18n.applyStatic();
       document.title = 'SERN FinTech - ' + t('page.title');
-      document.getElementById('lang-toggle').textContent = t('lang.label');
+      var langBtn = document.getElementById('lang-toggle');
+      if (langBtn) langBtn.textContent = t('lang.label');
       // ticker names
       var nodes = document.getElementById('index-ticker').querySelectorAll('.ticker-name');
       INDEX_SYMBOLS.forEach(function (s, i) {
