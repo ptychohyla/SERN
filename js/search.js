@@ -10,7 +10,7 @@
 
   window.SERN = window.SERN || {};
 
-  var STOCKAPI_ORIGIN = 'https://stockapi.hinsyeow.workers.dev';
+  var STOCKAPI_ORIGIN = 'https://stockapi.hinsyeow.org';
   var SEARCH_TIMEOUT = 8000;   // mirrors market-data.js STOCKAPI_TIMEOUT
   var DEBOUNCE_MS = 300;
   var LOCAL_LIMIT = 5;
@@ -198,7 +198,7 @@
     if (remoteCtrl) remoteCtrl.abort();
     var reachable = !window.SERN.yahoo || !window.SERN.yahoo.stockapiReachable
       || window.SERN.yahoo.stockapiReachable();
-    if (!reachable) return; // workers.dev blocked this session: local-only
+    if (!reachable) return; // origin unreachable this session: local-only
     remoteCtrl = typeof AbortController !== 'undefined' ? new AbortController() : null;
     var timer = remoteCtrl
       ? setTimeout(function () { remoteCtrl.abort(); }, SEARCH_TIMEOUT)

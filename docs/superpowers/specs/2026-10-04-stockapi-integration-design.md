@@ -5,7 +5,7 @@
 
 ## 背景与目标
 
-将用户自建的行情聚合服务 **StockAPI**（Cloudflare Worker，`https://stockapi.hinsyeow.workers.dev`）集成进 SERN markets 页面（原 rankings，已随本次改名）的多源降级链，作为覆盖市场的**最高优先级**价格 / K 线来源。现有 5 个数据源全部保留为后备，不删除、不改变既有降级逻辑。
+将用户自建的行情聚合服务 **StockAPI**（Cloudflare Worker，`https://stockapi.hinsyeow.org`，2026-10-05 起绑定自有域名，原 `stockapi.hinsyeow.workers.dev` 继续可用）集成进 SERN markets 页面（原 rankings，已随本次改名）的多源降级链，作为覆盖市场的**最高优先级**价格 / K 线来源。现有 5 个数据源全部保留为后备，不删除、不改变既有降级逻辑。
 
 StockAPI 由用户维护，源码位于 `/Users/hins/Project/stockapi`（Hono + TypeScript on Cloudflare Workers），上游为东方财富 + Yahoo Finance 自动切换。
 
@@ -96,6 +96,6 @@ getSpark: stockapi kline → eastmoney → tencent(ifzq) → yahoo
 
 | 风险 | 缓解 |
 |---|---|
-| workers.dev 在国内被阻断 | 已按不可达设计（预热零成功后置 down + 会话级跳过，均在后台）；建议 Worker 绑定自有域名后可用性大幅提升 |
+| workers.dev 在国内被阻断 | 已按不可达设计（预热零成功后置 down + 会话级跳过，均在后台）；**2026-10-05 已绑定自有域名 stockapi.hinsyeow.org，该阻断不再影响**，状态机继续兜底其他不可达网络 |
 | Worker 未部署 CORS 前浏览器必失败 | 部署顺序：先改 Worker + 部署，再验收 SERN 侧 |
 | StockAPI 无估值字段，贡献有限 | 定位即"价格/K 线一级源"；基本面仍走现有链，后续可在 Worker 加基本面端点 |

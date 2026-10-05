@@ -686,17 +686,18 @@
     return q;
   }
 
-  // -------------------- StockAPI (stockapi.hinsyeow.workers.dev) --------------------
+  // -------------------- StockAPI (stockapi.hinsyeow.org) --------------------
   // Self-hosted Cloudflare Worker aggregating Eastmoney + Yahoo server-side.
   // Covers US/CN/HK (126 of the 136 universe symbols) with price/changePct
   // only — valuation fields still come from the rest of the chain. Batch
   // quotes warm in the background OFF the batchReady critical path and
-  // behind a session availability flag: *.workers.dev is blocked on some
-  // networks, where the warm settles with zero successes and the source is
-  // flagged 'down' for the rest of the session instead of stalling quotes.
+  // behind a session availability flag: the custom domain bypasses the
+  // *.workers.dev block, but on any network where the origin is unreachable
+  // the warm settles with zero successes and the source is flagged 'down'
+  // for the rest of the session instead of stalling quotes.
   var stockapiSnapshots = {}; // internal symbol -> {price, changePct}
   var stockapiState = 'unknown'; // 'unknown' | 'ready' | 'down'
-  var STOCKAPI_ORIGIN = 'https://stockapi.hinsyeow.workers.dev';
+  var STOCKAPI_ORIGIN = 'https://stockapi.hinsyeow.org';
   // Abort budget must exceed the Worker's own worst case (2 providers x 3s
   // upstream timeout + overhead), else a slow-but-healthy Worker looks blocked
   var STOCKAPI_TIMEOUT = 8000;
@@ -1196,8 +1197,8 @@
     });
 
     // StockAPI warms off the critical path too: snapshots feed the top of
-    // the quote chain, but on networks that block workers.dev the warm
-    // aborts once and flips to 'down' — batchReady never waits for it.
+    // the quote chain, but on networks where the origin is unreachable the
+    // warm fails out and flips to 'down' — batchReady never waits for it.
     warmStockapi(universe.map(function (u) { return u.symbol; }));
 
     return batchReady;
@@ -1214,8 +1215,8 @@
     refreshQuote: refreshQuote,
     clearCache: clearCache,
     prefetch: prefetch,
-    // search.js gates its remote suggestions on this: false means workers.dev
-    // is unreachable this session and remote search would just stall
+    // search.js gates its remote suggestions on this: false means the
+    // origin is unreachable this session and remote search would just stall
     stockapiReachable: function () { return stockapiState !== 'down'; },
     // pure parsers exposed so the Node verification harness (run from
     // /tmp, not committed — AGENTS.md defines manual smoke testing) can
