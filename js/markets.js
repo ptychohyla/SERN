@@ -488,29 +488,31 @@
     return col;
   }
 
-  function openDrawer(symbol) {
-    var entry = state.entries.filter(function (e) { return e.meta.symbol === symbol; })[0];
-    if (!entry || !entry.data) return;
-    state.drawerSymbol = symbol;
+  // ==================== Drawer ====================
+  // renderDrawer drives both entries: pool rows (openDrawer) and off-universe
+  // search results (openExternalDrawer). External entries arrive with
+  // data=null (skeleton) and are filled asynchronously.
+  function renderDrawerSub(entry) {
     var d = entry.data;
-    var drawer = document.getElementById('drawer');
-    document.getElementById('drawer-overlay').classList.add('active');
-    drawer.classList.add('open');
+    var suffix = '';
+    if (d && d.price !== null && d.currency) suffix = ' · ' + d.currency + ' ' + fmt(d.price, 2);
+    else if (entry.external && !d) suffix = ' · ' + t('freshness.loading');
+    document.getElementById('drawer-sub').textContent = entry.meta.symbol + suffix;
+  }
 
-    document.getElementById('drawer-title').textContent = langName(entry.meta.name);
-    document.getElementById('drawer-sub').textContent = symbol +
-      (d.price !== null && d.currency ? ' · ' + d.currency + ' ' + fmt(d.price, 2) : '');
-
-    var breaks = document.getElementById('drawer-scores');
-    breaks.innerHTML = '';
-    if (entry.scores) {
-      breaks.appendChild(scoreBreakBar(t('score.valuation'), entry.scores.valuation, 'mini-bar-valuation'));
-      breaks.appendChild(scoreBreakBar(t('score.quality'), entry.scores.quality, 'mini-bar-quality'));
-      breaks.appendChild(scoreBreakBar(t('score.growth'), entry.scores.growth, 'mini-bar-growth'));
-    }
-
+  function renderDrawerMetrics(entry) {
     var metrics = document.getElementById('drawer-metrics');
     metrics.innerHTML = '';
+    var d = entry.data;
+    if (!d) {
+      if (entry.external) {
+        var loading = document.createElement('div');
+        loading.className = 'drawer-note';
+        loading.textContent = t('freshness.loading');
+        metrics.appendChild(loading);
+      }
+      return;
+    }
     var rows = [
       ['drawer.pe', fmt(d.pe, 2)], ['drawer.fpe', fmt(d.forwardPe, 2)],
       ['drawer.pb', fmt(d.pb, 2)], ['drawer.ps', fmt(d.ps, 2)],
@@ -527,6 +529,27 @@
         .map(function (s) { return t('source.' + s); }).join(' + ')]
     ];
     rows.forEach(function (r) { metrics.appendChild(metricBox(t(r[0]), r[1])); });
+  }
+
+  function renderDrawer(entry) {
+    var symbol = entry.meta.symbol;
+    state.drawerSymbol = symbol;
+    var drawer = document.getElementById('drawer');
+    document.getElementById('drawer-overlay').classList.add('active');
+    drawer.classList.add('open');
+
+    document.getElementById('drawer-title').textContent = langName(entry.meta.name);
+    renderDrawerSub(entry);
+
+    var breaks = document.getElementById('drawer-scores');
+    breaks.innerHTML = '';
+    if (entry.scores) {
+      breaks.appendChild(scoreBreakBar(t('score.valuation'), entry.scores.valuation, 'mini-bar-valuation'));
+      breaks.appendChild(scoreBreakBar(t('score.quality'), entry.scores.quality, 'mini-bar-quality'));
+      breaks.appendChild(scoreBreakBar(t('score.growth'), entry.scores.growth, 'mini-bar-growth'));
+    }
+
+    renderDrawerMetrics(entry);
 
     var canvas = document.getElementById('drawer-spark');
     canvas.getContext('2d').clearRect(0, 0, canvas.width, canvas.height);
@@ -536,6 +559,69 @@
 
     document.getElementById('drawer-yahoo').href =
       'https://finance.yahoo.com/quote/' + encodeURIComponent(symbol);
+  }
+
+  function openDrawer(symbol) {
+    var entry = state.entries.filter(function (e) { return e.meta.symbol === symbol; })[0];
+    if (!entry || !entry.data) return;
+    renderDrawer(entry);
+  }
+
+  function renderExternalFailure(entry) {
+    var metrics = document.getElementById('drawer-metrics');
+    metrics.innerHTML = '';
+    var note = document.createElement('div');
+    note.className = 'drawer-note';
+    note.textContent = t('search.unavailable') + ' ';
+    var retry = document.createElement('button');
+    retry.type = 'button';
+    retry.className = 'panel-btn';
+    retry.textContent = t('insufficient.retry');
+    retry.addEventListener('click', function () {
+      var symbol = entry.meta.symbol;
+      if (state.drawerSymbol !== symbol) return;
+      entry.data = null;
+      renderDrawerMetrics(entry); // back to the loading placeholder
+      yahoo.refreshQuote(symbol).then(function (q) {
+        if (state.drawerSymbol !== symbol) return;
+        if (q && q.price !== null) {
+          entry.data = q;
+          renderDrawerSub(entry);
+          renderDrawerMetrics(entry);
+        } else {
+          renderExternalFailure(entry);
+        }
+      }, function () {
+        if (state.drawerSymbol === symbol) renderExternalFailure(entry);
+      });
+    });
+    note.appendChild(retry);
+    metrics.appendChild(note);
+  }
+
+  // Off-universe pick from search: open the drawer as a skeleton, then fill
+  // metrics from the normal multi-source chain. scores stays null so the
+  // scores section hides itself (no sector peers => no meaningful score).
+  function openExternalDrawer(symbol, name) {
+    var entry = {
+      meta: { symbol: symbol, name: { en: name, zh: name }, market: null, sector: null },
+      data: null,
+      scores: null,
+      external: true
+    };
+    renderDrawer(entry);
+    yahoo.getQuote(symbol).then(function (q) {
+      if (state.drawerSymbol !== symbol) return;
+      if (q && q.price !== null) {
+        entry.data = q;
+        renderDrawerSub(entry);
+        renderDrawerMetrics(entry);
+      } else {
+        renderExternalFailure(entry);
+      }
+    }, function () {
+      if (state.drawerSymbol === symbol) renderExternalFailure(entry);
+    });
   }
 
   function closeDrawer() {
@@ -723,6 +809,13 @@
       if (state.scores) renderDistribution(visibleRanked().slice(0, 20));
     });
   }
+
+  // Consumed by js/search.js: pool results open the scored drawer,
+  // off-universe results open the external (scoreless) one.
+  window.SERN.markets = {
+    openDrawer: openDrawer,
+    openExternalDrawer: openExternalDrawer
+  };
 
   // ==================== Init ====================
   function init() {

@@ -1214,6 +1214,9 @@
     refreshQuote: refreshQuote,
     clearCache: clearCache,
     prefetch: prefetch,
+    // search.js gates its remote suggestions on this: false means workers.dev
+    // is unreachable this session and remote search would just stall
+    stockapiReachable: function () { return stockapiState !== 'down'; },
     // pure parsers exposed so the Node verification harness (run from
     // /tmp, not committed — AGENTS.md defines manual smoke testing) can
     // exercise them outside the DOM

@@ -67,6 +67,13 @@
       'insufficient.desc': 'These stocks returned price-only data or request failed and are excluded from ranking.',
       'insufficient.retry': 'Retry',
 
+      'search.placeholder': 'Search symbol or name',
+      'search.group-pool': 'Universe',
+      'search.group-more': 'More results',
+      'search.empty': 'No matches',
+      'search.loading': 'Searching…',
+      'search.unavailable': 'No data for this stock',
+
       'method.title': 'How scoring works',
       'method.p1': 'Every valuation metric is converted to a percentile rank among peer companies. In Multi-Factor and PEG models peers are companies in the same sector, so banks are never compared directly with technology stocks on P/E. Deep Value ranks across the whole market.',
       'method.p2': 'Multi-Factor blends industry-relative P/E, forward P/E, P/B, P/S, EV/EBITDA and dividend yield for the valuation score, then adds quality (ROE, free-cash-flow yield, net margin) and growth (earnings and revenue growth). High leverage applies a penalty up to 10 points.',
@@ -190,6 +197,13 @@
       'insufficient.title': '数据不足',
       'insufficient.desc': '以下股票仅获取到价格或请求失败，不参与本次排名。',
       'insufficient.retry': '重试',
+
+      'search.placeholder': '输入代码或名称',
+      'search.group-pool': '股票池',
+      'search.group-more': '更多结果',
+      'search.empty': '无匹配',
+      'search.loading': '搜索中…',
+      'search.unavailable': '该股票暂无数据',
 
       'method.title': '评分原理',
       'method.p1': '所有估值指标先在同类公司中转换为百分位排名。专业多因子与 PEG 模型按同行业分组，因此银行不会与科技股直接比较市盈率；深度价值则在全市场范围内排名。',
