@@ -25,7 +25,7 @@
   var CIRCUIT_THRESHOLD = 6;      // consecutive Yahoo quote failures
   var CIRCUIT_COOLDOWN = 30 * 1000;
   var SOURCE_DOWN_COOLDOWN = 60 * 1000;
-  var QUOTE_SOURCES = ['stockapi', 'tencent', 'eastmoney', 'tradingview', 'ths', 'yahoo'];
+  var QUOTE_SOURCES = ['stockapi', 'tencent', 'eastmoney', 'tradingview', 'ths', 'stockapiFundamentals', 'yahoo'];
 
   // -------------------- cache --------------------
   // Data is daily (T-1 close): persist in localStorage across sessions and
@@ -114,7 +114,7 @@
   }
 
   // -------------------- per-source cooldown (lazy fetch throttle) --------------------
-  var sourceDownUntil = { stockapi: 0, tencent: 0, eastmoney: 0, tradingview: 0, ths: 0 };
+  var sourceDownUntil = { stockapi: 0, tencent: 0, eastmoney: 0, tradingview: 0, ths: 0, 'stockapi-fund': 0 };
   function markDown(src) { sourceDownUntil[src] = Date.now() + SOURCE_DOWN_COOLDOWN; }
   function isDown(src) { return Date.now() < sourceDownUntil[src]; }
   function resetSourceCooldowns() {
@@ -823,6 +823,45 @@
     });
   }
 
+  // Fundamentals endpoint (server-side Yahoo v10 quoteSummary with the full
+  // cookie+crumb flow the browser can't do cross-origin). Accepts Yahoo-style
+  // symbols — which the internal symbols already ARE, so no canonical mapping
+  // — covering every market, unlike the quote/kline endpoints. Sits just
+  // above browser-Yahoo in the chain: it supplies the fields only Yahoo can
+  // (fcf, forwardPe, peg, non-CN growth) without the browser's 401/429 pain.
+  function parseStockapiFundamentals(text) {
+    var json;
+    try { json = JSON.parse(text); } catch (e) { return null; }
+    var d = json && json.data;
+    if (!d) return null;
+    return {
+      pe: num(d.pe),
+      forwardPe: num(d.forward_pe),
+      pb: num(d.pb),
+      ps: num(d.ps),
+      evEbitda: num(d.ev_ebitda),
+      peg: num(d.peg),
+      divYield: num(d.div_yield),
+      roe: num(d.roe),
+      margin: num(d.margin),
+      fcf: num(d.fcf),
+      fcfYield: num(d.fcf_yield),
+      marketCap: num(d.market_cap),
+      earningsGrowth: num(d.earnings_growth),
+      revenueGrowth: num(d.revenue_growth),
+      debtToEquity: num(d.debt_to_equity)
+    };
+  }
+
+  function stockapiFundamentals(symbol) {
+    var url = STOCKAPI_ORIGIN + '/v1/fundamentals/' + encodeURIComponent(symbol);
+    return fetchStockapi(url).then(function (text) {
+      var parsed = parseStockapiFundamentals(text);
+      if (!parsed) throw new Error('bad fundamentals payload');
+      return parsed;
+    });
+  }
+
   // -------------------- field-level backfill --------------------
   // Every field a fallback source can possibly supply. changePct is
   // source-self-consistent by construction (see txQuote), prevClose is
@@ -863,6 +902,15 @@
     if (source === 'ths') {
       return ensureThs(symbol).then(function (s) { return s ? thsQuote(symbol, s) : null; });
     }
+    if (source === 'stockapiFundamentals') {
+      // lazy per-symbol, gated on the session flag plus its own cooldown so a
+      // fundamentals outage never touches the quote warm's 'stockapi' entry
+      if (stockapiState !== 'ready' || isDown('stockapi-fund')) return Promise.resolve(null);
+      return stockapiFundamentals(symbol).then(null, function (err) {
+        if (err && err.network) markDown('stockapi-fund');
+        return null; // HTTP errors (404/502) just fall through to yahoo
+      });
+    }
     // yahoo: per-symbol only, never pre-warmed, circuit-broken
     if (!yahooDirect || circuitOpen()) return Promise.resolve(null);
     return yahooDirect.getQuote(symbol).then(function (yq) {
@@ -880,7 +928,8 @@
     QUOTE_SOURCES.forEach(function (src) {
       chain = chain.then(function () {
         return quoteFrom(src, q.symbol).then(function (partial) {
-          fillFrom(q, partial, src, contributors);
+          // fundamentals from the Worker credit the same 'stockapi' label
+          fillFrom(q, partial, src === 'stockapiFundamentals' ? 'stockapi' : src, contributors);
         });
       });
     });
@@ -1229,6 +1278,7 @@
       stockapiSymbol: stockapiSymbol,
       parseStockapiQuotes: parseStockapiQuotes,
       parseStockapiKline: parseStockapiKline,
+      parseStockapiFundamentals: parseStockapiFundamentals,
       stockapiQuote: stockapiQuote,
       txCode: txCode,
       emSecid: emSecid,
