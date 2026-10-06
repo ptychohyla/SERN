@@ -131,6 +131,8 @@
     { symbol: '601166.SS', name: { en: 'Industrial Bank', zh: '兴业银行' }, market: 'CN', sector: 'financials' },
     { symbol: '000568.SZ', name: { en: 'Luzhou Laojiao', zh: '泸州老窖' }, market: 'CN', sector: 'staples' },
     { symbol: '603259.SS', name: { en: 'WuXi AppTec', zh: '药明康德' }, market: 'CN', sector: 'health-care' },
+    { symbol: '601088.SS', name: { en: 'China Shenhua', zh: '中国神华' }, market: 'CN', sector: 'energy' },
+    { symbol: '300760.SZ', name: { en: 'Mindray', zh: '迈瑞医疗' }, market: 'CN', sector: 'health-care' },
 
     // ==================== Hong Kong (16) ====================
     { symbol: '0700.HK', name: { en: 'Tencent', zh: '腾讯控股' }, market: 'HK', sector: 'communication' },
@@ -149,18 +151,30 @@
     { symbol: '1024.HK', name: { en: 'Kuaishou', zh: '快手' }, market: 'HK', sector: 'communication' },
     { symbol: '2269.HK', name: { en: 'WuXi Biologics', zh: '药明生物' }, market: 'HK', sector: 'health-care' },
     { symbol: '2382.HK', name: { en: 'Sunny Optical', zh: '舜宇光学' }, market: 'HK', sector: 'technology' },
+    { symbol: '0388.HK', name: { en: 'HKEX', zh: '香港交易所' }, market: 'HK', sector: 'financials' },
+    { symbol: '1109.HK', name: { en: 'China Resources Land', zh: '华润置地' }, market: 'HK', sector: 'real-estate' },
 
-    // ==================== Japan / Korea / Taiwan / Europe (10) ====================
+    // ==================== Japan / Korea / Taiwan / Europe (20) ====================
     { symbol: '7203.T', name: { en: 'Toyota', zh: '丰田汽车' }, market: 'JP', sector: 'discretionary' },
     { symbol: '6758.T', name: { en: 'Sony', zh: '索尼集团' }, market: 'JP', sector: 'technology' },
     { symbol: '9984.T', name: { en: 'SoftBank Group', zh: '软银集团' }, market: 'JP', sector: 'communication' },
     { symbol: '8306.T', name: { en: 'Mitsubishi UFJ', zh: '三菱日联金融' }, market: 'JP', sector: 'financials' },
+    { symbol: '8035.T', name: { en: 'Tokyo Electron', zh: '东京电子' }, market: 'JP', sector: 'technology' },
+    { symbol: '7974.T', name: { en: 'Nintendo', zh: '任天堂' }, market: 'JP', sector: 'communication' },
+    { symbol: '8058.T', name: { en: 'Mitsubishi Corp', zh: '三菱商事' }, market: 'JP', sector: 'industrials' },
     { symbol: '005930.KS', name: { en: 'Samsung Electronics', zh: '三星电子' }, market: 'KR', sector: 'technology' },
     { symbol: '000660.KS', name: { en: 'SK Hynix', zh: 'SK海力士' }, market: 'KR', sector: 'technology' },
     { symbol: '2330.TW', name: { en: 'TSMC', zh: '台积电' }, market: 'TW', sector: 'technology' },
     { symbol: 'MC.PA', name: { en: 'LVMH', zh: '路威酩轩' }, market: 'EU', sector: 'discretionary' },
     { symbol: 'SAP.DE', name: { en: 'SAP', zh: '思爱普' }, market: 'EU', sector: 'technology' },
-    { symbol: '035420.KS', name: { en: 'Naver', zh: 'Naver' }, market: 'KR', sector: 'communication' }
+    { symbol: '035420.KS', name: { en: 'Naver', zh: 'Naver' }, market: 'KR', sector: 'communication' },
+    { symbol: '005380.KS', name: { en: 'Hyundai Motor', zh: '现代汽车' }, market: 'KR', sector: 'discretionary' },
+    { symbol: '105560.KS', name: { en: 'KB Financial', zh: 'KB金融' }, market: 'KR', sector: 'financials' },
+    { symbol: '2317.TW', name: { en: 'Hon Hai Precision', zh: '鸿海精密' }, market: 'TW', sector: 'technology' },
+    { symbol: '2881.TW', name: { en: 'Fubon Financial', zh: '富邦金控' }, market: 'TW', sector: 'financials' },
+    { symbol: 'OR.PA', name: { en: "L'Oréal", zh: '欧莱雅' }, market: 'EU', sector: 'staples' },
+    { symbol: 'TTE.PA', name: { en: 'TotalEnergies', zh: '道达尔能源' }, market: 'EU', sector: 'energy' },
+    { symbol: 'SIE.DE', name: { en: 'Siemens', zh: '西门子' }, market: 'EU', sector: 'industrials' }
   ];
 
   window.SERN.universe = universe;

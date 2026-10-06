@@ -2,30 +2,23 @@
   'use strict';
 
   window.SERN = window.SERN || {};
-  var yahooDirect = (window.SERN.providers || {}).yahoo;
 
-  // Multi-source market data orchestrator. Exposes the same interface the
-  // markets page has always consumed (window.SERN.yahoo):
-  //   getQuote / getChart / getSpark / refreshQuote
+  // Market data facade, single-source: EVERYTHING goes through the self-hosted
+  // StockAPI Worker (stockapi.hinsyeow.org), which aggregates Eastmoney +
+  // Yahoo server-side. No browser-side fallback chain remains — quotes and
+  // index prices come from /v1/quote, fundamentals from /v1/fundamentals,
+  // sparklines from /v1/kline. Exposes the same interface the markets page
+  // has always consumed (window.SERN.yahoo):
+  //   getQuote / getChart / getSpark / refreshQuote / clearCache / prefetch
   //
-  // Quote chain, strict priority with field-level fill — each source fills
-  // ONLY the fields still missing, a value set by a higher-priority source
-  // is never overwritten:
-  //   StockAPI -> Tencent -> Eastmoney -> TradingView -> THS -> Yahoo (last resort)
-  // Yahoo sits last: it is the flakiest (rate limits) and the only source
-  // fetched per-symbol; it still uniquely supplies forwardPe/peg/fcf for
-  // names the CN sources don't cover. The batch-warmed snapshots
-  // (prefetch) are the primary input — getQuote waits for that warm so
-  // the walk reads snapshots instead of firing one request per symbol per
-  // source. A circuit breaker short-circuits Yahoo after repeated
-  // failures; a per-source cooldown throttles sources that go down.
-  // StockAPI (self-hosted Cloudflare Worker) warms OFF that critical path
-  // behind a session availability flag — see its section below.
+  // Quotes: a batch warm (chunks of 20, 3 in flight) fills the snapshot map
+  // off the critical path; getQuote then merges the warmed price with a lazy
+  // per-symbol fundamentals fetch, field-level (a field already set is never
+  // overwritten). A session availability flag plus per-endpoint cooldowns
+  // keep an unreachable origin from stalling the page: failures resolve to
+  // "insufficient"/"failed" entries the UI can retry, never to a hang.
 
-  var CIRCUIT_THRESHOLD = 6;      // consecutive Yahoo quote failures
-  var CIRCUIT_COOLDOWN = 30 * 1000;
-  var SOURCE_DOWN_COOLDOWN = 60 * 1000;
-  var QUOTE_SOURCES = ['stockapi', 'tencent', 'eastmoney', 'tradingview', 'ths', 'stockapiFundamentals', 'yahoo'];
+  var QUOTE_SOURCES = ['stockapi', 'stockapiFundamentals'];
 
   // -------------------- cache --------------------
   // Data is daily (T-1 close): persist in localStorage across sessions and
@@ -62,10 +55,10 @@
     try { localStorage.removeItem(key); } catch (e) {}
   }
 
-  var DATA_KEY_PREFIXES = ['sern-quote-', 'sern-chart-', 'sern-spark-'];
+  var DATA_KEY_PREFIXES = ['sern-quote-', 'sern-chart-', 'sern-spark-', 'sern-candle-'];
 
   // Force refresh: wipe every data cache (but never user preferences),
-  // clear in-memory snapshots and the circuit breaker, then re-warm.
+  // clear in-memory snapshots, then re-warm.
   function clearCache() {
     try {
       var toRemove = [];
@@ -81,40 +74,15 @@
       }
       toRemove.forEach(function (k) { localStorage.removeItem(k); });
     } catch (e) {}
-    txSnapshots = {};
-    emSnapshots = {};
-    tvSnapshots = {};
-    thsSnapshots = {};
     stockapiSnapshots = {};
     stockapiState = 'unknown';
-    resetCircuit();
+    resetSourceCooldowns();
     return prefetch();
   }
 
-  // -------------------- circuit breaker (yahoo, last resort) --------------------
-  var yahooFailures = 0;
-  var circuitOpenUntil = 0;
-
-  function circuitOpen() {
-    return yahooFailures >= CIRCUIT_THRESHOLD && Date.now() < circuitOpenUntil;
-  }
-  function recordYahooSuccess() {
-    yahooFailures = 0;
-    circuitOpenUntil = 0;
-  }
-  function recordYahooFailure() {
-    yahooFailures++;
-    if (yahooFailures >= CIRCUIT_THRESHOLD) {
-      circuitOpenUntil = Date.now() + CIRCUIT_COOLDOWN;
-    }
-  }
-  function resetCircuit() {
-    yahooFailures = 0;
-    circuitOpenUntil = 0;
-  }
-
-  // -------------------- per-source cooldown (lazy fetch throttle) --------------------
-  var sourceDownUntil = { stockapi: 0, tencent: 0, eastmoney: 0, tradingview: 0, ths: 0, 'stockapi-fund': 0 };
+  // -------------------- per-endpoint cooldown (lazy fetch throttle) --------------------
+  var SOURCE_DOWN_COOLDOWN = 60 * 1000;
+  var sourceDownUntil = { stockapi: 0, 'stockapi-fund': 0 };
   function markDown(src) { sourceDownUntil[src] = Date.now() + SOURCE_DOWN_COOLDOWN; }
   function isDown(src) { return Date.now() < sourceDownUntil[src]; }
   function resetSourceCooldowns() {
@@ -139,7 +107,7 @@
     if (suffix === 'HK') return 'HKD';
     if (suffix === 'SS' || suffix === 'SZ') return 'CNY';
     if (suffix === 'T') return 'JPY';
-    if (suffix === 'KS') return 'KRW';
+    if (suffix === 'KS' || suffix === 'KQ') return 'KRW';
     if (suffix === 'TW') return 'TWD';
     return 'EUR';
   }
@@ -176,525 +144,21 @@
     return n;
   }
 
-  // -------------------- Tencent Finance (qt.gtimg.cn) --------------------
-  // CORS-enabled, GBK-encoded tilde rows; field positions differ by market.
-  var txSnapshots = {}; // txCode -> snapshot
-
-  // HK codes are 5 digits on both Tencent (hk00700) and Eastmoney
-  // (116.00700); the universe writes them 4-digit (0700.HK). 4-digit forms
-  // silently match nothing on either API.
+  // HK codes are 5 digits on the Worker (00700.HK); the universe writes
+  // them 4-digit (0700.HK), which silently matches nothing.
   function hkPad(code) {
     while (code.length < 5) code = '0' + code;
     return code;
   }
 
-  // US ADR/OTC equivalents for markets whose direct Tencent rows omit
-  // valuation ratios. Ratios are currency-neutral, so they can fill the
-  // local quote; ADR prices/market caps are deliberately not used.
-  var TX_ADR_SYMBOLS = {
-    '7203.T': 'TM',
-    '6758.T': 'SONY',
-    '9984.T': 'SFTBY',
-    '8306.T': 'MUFG',
-    '005930.KS': 'SSNLF',
-    '000660.KS': 'SKHY',
-    '035420.KS': 'NHNCF',
-    '2330.TW': 'TSM',
-    'MC.PA': 'LVMUY',
-    'SAP.DE': 'SAP'
-  };
-
-  function txCode(symbol) {
-    var dot = symbol.indexOf('.');
-    if (dot === -1) {
-      // Tencent uses a dot for Berkshire classes (BRK.B), Yahoo uses a hyphen.
-      return 'us' + symbol.replace('-', '.');                // US
-    }
-    var suffix = symbol.slice(dot + 1);
-    var code = symbol.slice(0, dot);
-    if (suffix === 'SS') return 'sh' + code;
-    if (suffix === 'SZ') return 'sz' + code;
-    if (suffix === 'HK') return 'hk' + hkPad(code);
-    if (suffix === 'T') return 'jp' + code;
-    if (suffix === 'KS') return 'kr' + code;
-    return null; // .TW/.PA/.DE direct rows not covered; ADR map supplies ratios
-  }
-
-  function txAdrCode(symbol) {
-    var adr = TX_ADR_SYMBOLS[symbol];
-    return adr ? 'us' + adr : null;
-  }
-
-  function txEmptySnap() {
-    return {
-      price: null, prevClose: null, currency: null,
-      pe: null, forwardPe: null, pb: null, ps: null,
-      marketCap: null, peg: null, divYield: null,
-      margin: null, earningsGrowth: null, revenueGrowth: null
-    };
-  }
-
-  function parseTxLine(body) {
-    var f = body.split('~');
-    if (f.length < 50) return null;
-    var flag = f[0];
-    var snap = txEmptySnap();
-    snap.price = num(f[3]);
-    snap.prevClose = num(f[4]);
-    if (flag === '200') {          // US / ADR
-      snap.pe = num(f[39]);
-      snap.forwardPe = num(f[57]);
-      snap.pb = num(f[51]);
-      snap.peg = num(f[66]);
-      snap.marketCap = num(f[45]) !== null ? num(f[45]) * 1e8 : null;
-      var dy = num(f[52]);
-      snap.divYield = dy !== null ? dy / 100 : null;
-      snap.margin = num(f[65]) !== null ? num(f[65]) / 100 : null;
-      snap.revenueGrowth = num(f[59]) !== null ? num(f[59]) / 100 : null;
-      snap.earningsGrowth = num(f[60]) !== null ? num(f[60]) / 100 : null;
-      // f47 is EPS (price / EPS = f39), not PS; the quote endpoint has no PS.
-    } else if (flag === '100') {   // Hong Kong
-      snap.pe = num(f[39]);
-      snap.marketCap = num(f[45]) !== null ? num(f[45]) * 1e8 : null;
-    } else if (flag === '1') {     // A-shares (sh/sz)
-      snap.pe = num(f[52]) !== null ? num(f[52]) : num(f[39]); // TTM preferred
-      snap.pb = num(f[46]);
-      snap.marketCap = num(f[45]) !== null ? num(f[45]) * 1e8 : null;
-    } else if (flag === '351' || flag === '352') { // Japan / Korea
-      snap.marketCap = num(f[45]) !== null ? num(f[45]) * 1e8 : null;
-    } else {
-      return null;
-    }
-    if (snap.price === null) return null;
-    return snap;
-  }
-
-  function fetchTx(codes) {
-    if (!codes.length) return Promise.resolve({});
-    var url = 'https://qt.gtimg.cn/q=' + codes.join(',');
-    return fetch(url).then(function (res) {
-      if (!res.ok) throw new Error('HTTP ' + res.status);
-      return res.arrayBuffer();
-    }).then(function (buf) {
-      var text = new TextDecoder('gbk').decode(buf);
-      var out = {};
-      var re = /v_([a-zA-Z0-9_.]+)="([^"]*)";/g;
-      var m;
-      while ((m = re.exec(text))) {
-        var snap = parseTxLine(m[2]);
-        if (snap) out[m[1]] = snap;
-      }
-      return out;
-    }).catch(function (e) { markDown('tencent'); throw e; });
-  }
-
-  function mergeTx(map) {
-    Object.keys(map).forEach(function (k) { txSnapshots[k] = map[k]; });
-  }
-
-  var TX_ADR_FILL_KEYS = ['pe', 'forwardPe', 'pb', 'peg', 'divYield',
-    'margin', 'earningsGrowth', 'revenueGrowth'];
-
-  function fillTxSnap(target, adr) {
-    TX_ADR_FILL_KEYS.forEach(function (k) {
-      if (target[k] === null && adr[k] !== null && adr[k] !== undefined) {
-        target[k] = adr[k];
-      }
-    });
-  }
-
-  function snapshotTxCode(code) {
-    if (!code) return Promise.resolve(null);
-    if (txSnapshots[code]) return Promise.resolve(txSnapshots[code]);
-    if (isDown('tencent')) return Promise.resolve(null);
-    return fetchTx([code]).then(function (map) {
-      mergeTx(map);
-      return txSnapshots[code] || null;
-    }).catch(function () { return null; });
-  }
-
-  function ensureTx(symbol) {
-    var localCode = txCode(symbol);
-    var adrCode = txAdrCode(symbol);
-    if (!localCode && !adrCode) return Promise.resolve(null);
-    return Promise.all([
-      snapshotTxCode(localCode),
-      snapshotTxCode(adrCode)
-    ]).then(function (parts) {
-      var snap = parts[0] ? Object.assign(txEmptySnap(), parts[0]) : txEmptySnap();
-      if (parts[1]) {
-        fillTxSnap(snap, parts[1]);
-        if (!parts[0]) {
-          // No direct local row (and Eastmoney is rate-limited/unavailable).
-          // The same Tencent response still carries a valid US ADR quote.
-          snap.currency = 'USD';
-          snap.price = parts[1].price;
-          snap.marketCap = parts[1].marketCap;
-        }
-      }
-      return snap;
-    });
-  }
-
-  function txQuote(symbol, snap) {
-    var q = emptyQuote(symbol);
-    q.source = 'tencent';
-    if (snap.currency) q.currency = snap.currency;
-    q.price = snap.price;
-    // changePct is always computed within one source — mixing a price from
-    // one provider with a previous close from another yields garbage
-    q.changePct = (snap.price !== null && snap.prevClose)
-      ? (snap.price - snap.prevClose) / snap.prevClose : null;
-    q.pe = nonNeg(snap.pe);
-    q.forwardPe = nonNeg(snap.forwardPe);
-    q.pb = nonNeg(snap.pb);
-    q.ps = nonNeg(snap.ps);
-    q.peg = nonNeg(snap.peg);
-    q.marketCap = snap.marketCap;
-    q.divYield = nonNeg(snap.divYield);
-    q.margin = nonNeg(snap.margin);
-    q.earningsGrowth = nonNeg(snap.earningsGrowth);
-    q.revenueGrowth = nonNeg(snap.revenueGrowth);
-    return q;
-  }
-
-  // -------------------- Eastmoney (push2 / push2his) --------------------
-  var emSnapshots = {}; // secid -> {price, changePct, marketCap, peTtm, pb}
-
-  function emSecid(symbol) {
-    var dot = symbol.indexOf('.');
-    if (dot === -1) return null; // US secid is ambiguous (105/106); Tencent covers US
-    var suffix = symbol.slice(dot + 1);
-    var code = symbol.slice(0, dot);
-    if (suffix === 'SS') return '1.' + code;
-    if (suffix === 'SZ') return '0.' + code;
-    if (suffix === 'HK') return '116.' + hkPad(code);
-    if (suffix === 'T') return '176.' + code;
-    if (suffix === 'KS') return '177.' + code;
-    if (suffix === 'TW') return '178.' + code;
-    if (suffix === 'DE') return '185.' + code;
-    if (suffix === 'PA') return '186.' + code;
-    return null;
-  }
-
-  function emIsGlobal(secid) {
-    return /^(176|177|178|185|186)\./.test(secid);
-  }
-
-  function emNum(x) {
-    return (typeof x === 'number' && isFinite(x)) ? x : null; // fltt=2 floats; '-' stays a string
-  }
-
-  // Rows are keyed by secid rebuilt from f13.f12 — eastmoney OMITS rows for
-  // secids it doesn't recognize, so positional mapping would silently shift
-  // later rows onto the wrong symbols. Field map probed live 2026-10-03:
-  // f2 price, f3 changePct, f9 PE(动), f20 总市值, f23 PB — the f116/f162/
-  // f167 fields used before return '-' or unrelated values from ulist.
-  function emFetchUlist(secids, fields) {
-    var url = 'https://push2.eastmoney.com/api/qt/ulist.np/get?fltt=2&invt=2&fields=' +
-      fields + '&secids=' + secids.join(',');
-    return fetch(url).then(function (res) {
-      if (!res.ok) throw new Error('HTTP ' + res.status);
-      return res.text();
-    }).then(function (text) {
-      var json = JSON.parse(text);
-      if (!json || json.rc !== 0 || !json.data) throw new Error('eastmoney rc ' + (json && json.rc));
-      var wanted = {};
-      secids.forEach(function (s) { wanted[s] = true; });
-      var out = {};
-      (json.data.diff || []).forEach(function (row) {
-        if (!row) return;
-        var key = String(row.f13) + '.' + row.f12;
-        if (wanted[key]) out[key] = row;
-      });
-      return out;
-    }).catch(function (e) { markDown('eastmoney'); throw e; });
-  }
-
-  function emQuoteRow(row) {
-    return {
-      price: emNum(row.f2),
-      changePct: emNum(row.f3) !== null ? row.f3 / 100 : null,
-      marketCap: emNum(row.f20),
-      pe: emNum(row.f9),
-      pb: emNum(row.f23)
-    };
-  }
-
-  // Global markets do not reliably answer ulist; the single-stock endpoint
-  // supplies local price, market cap and PB. f162 PE is commonly '-'.
-  function emFetchStock(secid, suppressMarkdown) {
-    var url = 'https://push2.eastmoney.com/api/qt/stock/get?fltt=2&invt=2' +
-      '&fields=f43,f60,f116,f167&secid=' + secid;
-    return fetch(url).then(function (res) {
-      if (!res.ok) throw new Error('HTTP ' + res.status);
-      return res.text();
-    }).then(function (text) {
-      var json = JSON.parse(text);
-      if (!json || json.rc !== 0 || !json.data) throw new Error('eastmoney stock rc');
-      var row = json.data;
-      var price = emNum(row.f43);
-      var prevClose = emNum(row.f60);
-      return {
-        price: price,
-        changePct: (price !== null && prevClose) ? (price - prevClose) / prevClose : null,
-        marketCap: emNum(row.f116),
-        pe: null,
-        pb: emNum(row.f167)
-      };
-    }).catch(function (e) {
-      if (!suppressMarkdown) markDown('eastmoney');
-      throw e;
-    });
-  }
-
-  function ensureEm(symbol) {
-    var secid = emSecid(symbol);
-    if (!secid) return Promise.resolve(null);
-    if (emSnapshots[secid]) return Promise.resolve(emSnapshots[secid]);
-    if (isDown('eastmoney')) return Promise.resolve(null);
-    if (emIsGlobal(secid)) {
-      return emFetchStock(secid).then(function (row) {
-        emSnapshots[secid] = row;
-        return row;
-      }).catch(function () { return null; });
-    }
-    return emFetchUlist([secid], 'f2,f3,f9,f12,f13,f20,f23').then(function (map) {
-      if (map[secid]) emSnapshots[secid] = emQuoteRow(map[secid]);
-      return emSnapshots[secid] || null;
-    }).catch(function () { return null; });
-  }
-
-  function emQuote(symbol, row) {
-    var q = emptyQuote(symbol);
-    q.source = 'eastmoney';
-    q.price = row.price;
-    q.changePct = row.changePct;
-    q.pe = nonNeg(row.pe);
-    q.pb = nonNeg(row.pb);
-    q.marketCap = row.marketCap;
-    return q;
-  }
-
-  // -------------------- TradingView (scanner.tradingview.com) --------------------
-  // CORS-enabled POST scanner with global fundamentals. Covers every market
-  // in the universe, including JP/KR/TW/EU names no other fallback reaches.
-  var tvSnapshots = {}; // tvTicker -> column array
-
-  var TV_EXCHANGES = {
-    SS: 'SSE', SZ: 'SZSE', HK: 'HKEX', T: 'TSE',
-    KS: 'KRX', TW: 'TWSE', PA: 'EURONEXT', DE: 'XETR'
-  };
-
-  function tvCandidates(symbol) {
-    var dot = symbol.indexOf('.');
-    if (dot === -1) return ['NASDAQ:' + symbol, 'NYSE:' + symbol]; // TV returns only the real one
-    var suffix = symbol.slice(dot + 1);
-    var code = symbol.slice(0, dot);
-    var exch = TV_EXCHANGES[suffix];
-    if (!exch) return [];
-    if (suffix === 'HK') {
-      var stripped = parseInt(code, 10); // HKEX:700, not 0700
-      if (!isNaN(stripped)) code = String(stripped);
-    }
-    return [exch + ':' + code];
-  }
-
-  var TV_COLUMNS = [
-    'name', 'close', 'currency',
-    'price_earnings_ttm', 'price_book_fq', 'price_sales_current',
-    'enterprise_value_ebitda_ttm',
-    'return_on_equity_fq', 'net_margin_ttm', 'debt_to_equity_fq',
-    'dividends_yield'
-  ];
-
-  function fetchTv(tickers) {
-    if (!tickers.length) return Promise.resolve({});
-    return fetch('https://scanner.tradingview.com/global/scan', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        symbols: { tickers: tickers, query: { types: [] } },
-        columns: TV_COLUMNS
-      })
-    }).then(function (res) {
-      if (!res.ok) throw new Error('HTTP ' + res.status);
-      return res.text();
-    }).then(function (text) {
-      var json = JSON.parse(text);
-      var out = {};
-      (json && json.data ? json.data : []).forEach(function (row) {
-        if (row && row.s && row.d) out[row.s] = row.d;
-      });
-      return out;
-    }).catch(function (e) { markDown('tradingview'); throw e; });
-  }
-
-  function mergeTv(map) {
-    Object.keys(map).forEach(function (k) { tvSnapshots[k] = map[k]; });
-  }
-
-  function ensureTv(symbol) {
-    var cands = tvCandidates(symbol);
-    if (!cands.length) return Promise.resolve(null);
-    for (var i = 0; i < cands.length; i++) {
-      if (tvSnapshots[cands[i]]) return Promise.resolve(tvSnapshots[cands[i]]);
-    }
-    if (isDown('tradingview')) return Promise.resolve(null);
-    return fetchTv(cands).then(function (map) {
-      mergeTv(map);
-      for (var i = 0; i < cands.length; i++) {
-        if (tvSnapshots[cands[i]]) return tvSnapshots[cands[i]];
-      }
-      return null;
-    }).catch(function () { return null; });
-  }
-
-  function tvQuote(symbol, d) {
-    var q = emptyQuote(symbol);
-    q.source = 'tradingview';
-    q.price = num(d[1]);
-    if (d[2]) q.currency = d[2];
-    q.pe = nonNeg(num(d[3]));
-    q.pb = nonNeg(num(d[4]));
-    q.ps = nonNeg(num(d[5]));
-    q.evEbitda = nonNeg(num(d[6]));
-    q.roe = num(d[7]) !== null ? num(d[7]) / 100 : null;
-    q.margin = num(d[8]) !== null ? num(d[8]) / 100 : null;
-    q.debtToEquity = num(d[9]); // ratio form (1.18 = 118%)
-    var dy = num(d[10]);
-    q.divYield = dy !== null ? nonNeg(dy) / 100 : null;
-    return q;
-  }
-
-  // -------------------- THS F10 (basic.10jqka.com.cn) --------------------
-  // The JSON API behind akshare's stock_financial_abstract_ths: CORS-open,
-  // A-shares only, no cookie needed (any browser UA passes its UA filter).
-  // Its unique value here is revenue/earnings YoY growth, which no other
-  // fallback supplies for CN names. Growth is a scale-free ratio and comes
-  // from the latest REPORT period; roe/margin/debt come from the ANNUAL
-  // matrix so their magnitude matches the TTM/fq figures of the
-  // higher-priority sources.
-  var thsSnapshots = {}; // code -> fundamentals snapshot
-
-  function thsCode(symbol) {
-    var dot = symbol.indexOf('.');
-    if (dot === -1) return null;
-    var suffix = symbol.slice(dot + 1);
-    if (suffix !== 'SS' && suffix !== 'SZ') return null;
-    return symbol.slice(0, dot);
-  }
-
-  // THS values are Chinese-formatted strings: "445.17亿", "-1.95%", "--"
-  function parseThsNumber(str) {
-    if (typeof str !== 'string') return null;
-    var s = str.replace(/,/g, '').trim();
-    if (!s || s === '--' || s === '-') return null;
-    var isPct = false;
-    if (s.charAt(s.length - 1) === '%') {
-      isPct = true;
-      s = s.slice(0, -1);
-    }
-    var mult = 1;
-    var last = s.charAt(s.length - 1);
-    if (last === '亿') { mult = 1e8; s = s.slice(0, -1); }
-    else if (last === '万') { mult = 1e4; s = s.slice(0, -1); }
-    var n = parseFloat(s);
-    if (!isFinite(n)) return null;
-    return { value: n * mult, isPct: isPct };
-  }
-
-  // fd.title[] and the report/year matrices are row-aligned; matrix row 0
-  // lists periods newest-first, so column 0 of a row is its latest value.
-  function thsRowLatest(fd, matrix, indicator) {
-    var titles = fd.title || [];
-    var rows = fd[matrix] || [];
-    for (var i = 0; i < titles.length; i++) {
-      var t = titles[i];
-      var name = t instanceof Array ? t[0] : t;
-      if (name === indicator) {
-        var row = rows[i];
-        return (row && row.length) ? row[0] : null;
-      }
-    }
-    return null;
-  }
-
-  function thsPercent(str) { // "32.53%" -> 0.3253
-    var p = parseThsNumber(str);
-    return p ? p.value / 100 : null;
-  }
-
-  function parseThsFinance(body) {
-    var raw;
-    try { raw = JSON.parse(body); } catch (e) { return null; }
-    if (!raw || typeof raw.flashData !== 'string') return null;
-    var fd;
-    try { fd = JSON.parse(raw.flashData); } catch (e) { return null; }
-    var de = parseThsNumber(thsRowLatest(fd, 'year', '产权比率'));
-    return {
-      earningsGrowth: thsPercent(thsRowLatest(fd, 'report', '净利润同比增长率')),
-      revenueGrowth: thsPercent(thsRowLatest(fd, 'report', '营业总收入同比增长率')),
-      roe: thsPercent(thsRowLatest(fd, 'year', '净资产收益率')),
-      margin: thsPercent(thsRowLatest(fd, 'year', '销售净利率')),
-      // 产权比率 comes as a ratio (0.20 = 20%) but may carry a % sign on
-      // other names; store as a percent-number to match Yahoo's
-      // debtToEquity scale (148.5 = 148.5%)
-      debtToEquity: de ? (de.isPct ? de.value : de.value * 100) : null
-    };
-  }
-
-  function fetchThs(code) {
-    var url = 'https://basic.10jqka.com.cn/api/stock/finance/' + code + '_main.json';
-    return fetch(url).then(function (res) {
-      if (!res.ok) throw new Error('HTTP ' + res.status);
-      return res.text();
-    }).then(function (text) {
-      // a symbol THS doesn't cover answers with a parameter-error JSON —
-      // that is not a source outage, resolve null without tripping cooldown
-      return parseThsFinance(text);
-    }).catch(function (e) { markDown('ths'); throw e; });
-  }
-
-  var thsInflight = {}; // dedup: background warm and quote walk can overlap
-  function ensureThs(symbol) {
-    var code = thsCode(symbol);
-    if (!code) return Promise.resolve(null);
-    if (thsSnapshots[code]) return Promise.resolve(thsSnapshots[code]);
-    if (isDown('ths')) return Promise.resolve(null);
-    if (!thsInflight[code]) {
-      thsInflight[code] = fetchThs(code).then(function (snap) {
-        delete thsInflight[code];
-        if (snap) thsSnapshots[code] = snap;
-        return thsSnapshots[code] || null;
-      }, function () {
-        delete thsInflight[code];
-        return null;
-      });
-    }
-    return thsInflight[code];
-  }
-
-  function thsQuote(symbol, snap) {
-    var q = emptyQuote(symbol);
-    q.source = 'ths';
-    q.earningsGrowth = snap.earningsGrowth;
-    q.revenueGrowth = snap.revenueGrowth;
-    q.roe = snap.roe;
-    q.margin = snap.margin;
-    q.debtToEquity = snap.debtToEquity;
-    return q;
-  }
-
   // -------------------- StockAPI (stockapi.hinsyeow.org) --------------------
   // Self-hosted Cloudflare Worker aggregating Eastmoney + Yahoo server-side.
-  // Covers US/CN/HK (126 of the 136 universe symbols) with price/changePct
-  // only — valuation fields still come from the rest of the chain. Batch
-  // quotes warm in the background OFF the batchReady critical path and
-  // behind a session availability flag: the custom domain bypasses the
-  // *.workers.dev block, but on any network where the origin is unreachable
-  // the warm settles with zero successes and the source is flagged 'down'
-  // for the rest of the session instead of stalling quotes.
+  // Covers the whole universe (US/CN/HK/JP/KR/TW/EU) plus the tracked indices.
+  // Batch quotes warm in the background behind a session availability flag:
+  // the custom domain bypasses the *.workers.dev block, but on any network
+  // where the origin is unreachable the warm settles with zero successes and
+  // the source is flagged 'down' for the rest of the session instead of
+  // stalling quotes.
   var stockapiSnapshots = {}; // internal symbol -> {price, changePct}
   var stockapiState = 'unknown'; // 'unknown' | 'ready' | 'down'
   var STOCKAPI_ORIGIN = 'https://stockapi.hinsyeow.org';
@@ -703,17 +167,29 @@
   var STOCKAPI_TIMEOUT = 8000;
   var STOCKAPI_BATCH = 20;     // API hard limit per /v1/quote request
 
+  // Internal (Yahoo-style) symbol -> Worker canonical. Mirrors the Worker's
+  // normalization: US gets an explicit .US suffix (the Worker canonicalizes
+  // responses to AAPL.US, so a bare code never matches back), CN exchanges
+  // map to .SH/.SZ, HK pads to 5 digits, and JP/KR/TW map to market suffixes.
+  // EU codes and indices are already in canonical (Yahoo) form.
   function stockapiSymbol(symbol) {
+    if (symbol.charAt(0) === '^') return symbol; // global index: ^GSPC 等原样
     var dot = symbol.indexOf('.');
-    // US must carry the explicit .US suffix: the Worker normalizes responses
-    // to canonical form (AAPL -> AAPL.US), so a bare code never matches back
     if (dot === -1) return symbol + '.US';
     var suffix = symbol.slice(dot + 1);
     var code = symbol.slice(0, dot);
-    if (suffix === 'SS') return code + '.SH';
+    if (suffix === 'SS') {
+      // 000 开头上证指数（000300.SS）保持原形态，其余沪市股票归一为 .SH
+      return code.indexOf('000') === 0 ? code + '.SS' : code + '.SH';
+    }
     if (suffix === 'SZ') return code + '.SZ';
     if (suffix === 'HK') return hkPad(code) + '.HK';
-    return null; // .T/.KS/.TW/.PA/.DE not covered by the Worker
+    if (suffix === 'T') return code + '.JP';
+    if (suffix === 'KS') return code + '.KR';
+    if (suffix === 'KQ') return code + '.KQ';
+    if (suffix === 'TW') return code + '.TW';
+    if (suffix === 'PA' || suffix === 'DE') return symbol; // 欧股即 Yahoo 形态
+    return null;
   }
 
   function fetchStockapi(url) {
@@ -737,8 +213,8 @@
   // Pure: /v1/quote body -> {canonical: {price, changePct}}. A per-symbol
   // error item ('ALL_PROVIDERS_FAILED') is skipped, not a source outage.
   // change_pct is optional in the Worker's contract, but an item without it
-  // is dropped too: price+changePct stay pair-or-nothing, so a fallback
-  // source never computes a changePct against a different source's price.
+  // is dropped too: price+changePct stay pair-or-nothing, so a later field
+  // fill never computes a changePct against a different fetch's price.
   function parseStockapiQuotes(text) {
     var json;
     try { json = JSON.parse(text); } catch (e) { return {}; }
@@ -767,6 +243,26 @@
     return points.length >= 2 ? points : null;
   }
 
+  // Pure: /v1/kline body -> OHLC candles (time-ascending) for the ticker
+  // mini K-line charts.
+  function parseStockapiCandles(text) {
+    var json;
+    try { json = JSON.parse(text); } catch (e) { return null; }
+    var candles = json && json.data && json.data.candles;
+    if (!candles || !candles.length) return null;
+    var out = [];
+    candles.forEach(function (c) {
+      if (!c) return;
+      var o = num(c.open);
+      var h = num(c.high);
+      var l = num(c.low);
+      var cl = num(c.close);
+      if (o === null || h === null || l === null || cl === null) return;
+      out.push({ o: o, h: h, l: l, c: cl });
+    });
+    return out.length >= 2 ? out : null;
+  }
+
   function warmStockapi(symbols) {
     var pairs = [];
     symbols.forEach(function (s) {
@@ -777,7 +273,7 @@
     var successes = 0;
     return runChunks(chunkOf(pairs, STOCKAPI_BATCH), 3, function (chunk) {
       var url = STOCKAPI_ORIGIN + '/v1/quote?symbols=' + chunk.map(function (p) {
-        return p.canonical;
+        return encodeURIComponent(p.canonical);
       }).join(',');
       return fetchStockapi(url).then(function (text) {
         var map = parseStockapiQuotes(text);
@@ -815,7 +311,8 @@
   function stockapiKline(symbol) {
     var canonical = stockapiSymbol(symbol);
     if (!canonical) return Promise.reject(new Error('no stockapi symbol for ' + symbol));
-    var url = STOCKAPI_ORIGIN + '/v1/kline/' + canonical + '?period=daily&adjust=qfq&limit=60';
+    var url = STOCKAPI_ORIGIN + '/v1/kline/' + encodeURIComponent(canonical) +
+      '?period=daily&adjust=qfq&limit=60';
     return fetchStockapi(url).then(function (text) {
       var points = parseStockapiKline(text);
       if (!points) throw new Error('stockapi kline too short');
@@ -823,12 +320,33 @@
     });
   }
 
+  // OHLC candles for the index ticker mini K-line charts: last 40 daily bars.
+  // Same /v1/kline endpoint as the sparkline, full candle shape instead of
+  // closes. Cached like every other data fetch.
+  function getCandles(symbol) {
+    var key = 'sern-candle-' + symbol;
+    var hit = cacheEntry(key);
+    if (hit) return Promise.resolve(hit.data);
+    var canonical = stockapiSymbol(symbol);
+    if (!canonical) return Promise.reject(new Error('no stockapi symbol for ' + symbol));
+    var url = STOCKAPI_ORIGIN + '/v1/kline/' + encodeURIComponent(canonical) +
+      '?period=daily&adjust=qfq&limit=40';
+    return fetchStockapi(url).then(function (text) {
+      var candles = parseStockapiCandles(text);
+      if (!candles) throw new Error('stockapi candles too short');
+      var out = { symbol: symbol, candles: candles };
+      cacheSet(key, out);
+      return out;
+    }, function (err) {
+      if (err && err.network) markDown('stockapi');
+      throw err;
+    });
+  }
+
   // Fundamentals endpoint (server-side Yahoo v10 quoteSummary with the full
   // cookie+crumb flow the browser can't do cross-origin). Accepts Yahoo-style
   // symbols — which the internal symbols already ARE, so no canonical mapping
-  // — covering every market, unlike the quote/kline endpoints. Sits just
-  // above browser-Yahoo in the chain: it supplies the fields only Yahoo can
-  // (fcf, forwardPe, peg, non-CN growth) without the browser's 401/429 pain.
+  // — covering every market.
   function parseStockapiFundamentals(text) {
     var json;
     try { json = JSON.parse(text); } catch (e) { return null; }
@@ -862,10 +380,10 @@
     });
   }
 
-  // -------------------- field-level backfill --------------------
-  // Every field a fallback source can possibly supply. changePct is
-  // source-self-consistent by construction (see txQuote), prevClose is
-  // deliberately NOT here: mixing it with another source's price is garbage.
+  // -------------------- field-level merge --------------------
+  // changePct is source-self-consistent by construction (pair-or-nothing at
+  // parse time); prevClose is deliberately NOT here: mixing it with another
+  // fetch's price is garbage.
   var FILL_KEYS = ['price', 'marketCap', 'changePct', 'pe', 'forwardPe', 'pb', 'ps',
     'evEbitda', 'peg', 'divYield', 'roe', 'margin', 'fcf', 'fcfYield',
     'earningsGrowth', 'revenueGrowth', 'debtToEquity'];
@@ -882,43 +400,20 @@
     if (added && contributors.indexOf(source) === -1) contributors.push(source);
   }
 
-  // ensure* reads the warmed snapshot first and only fetches on a miss, so
-  // the walk costs nothing once prefetch has run.
+  // Both legs read the warmed state first and only fetch on a miss, so the
+  // walk costs nothing once prefetch has run.
   function quoteFrom(source, symbol) {
     if (source === 'stockapi') {
       // warm-only: no per-symbol lazy fetch, so the walk never stalls on a
-      // cold or blocked StockAPI — a miss simply falls through the chain
+      // cold or blocked StockAPI — a miss simply ends the walk
       return Promise.resolve(stockapiQuote(symbol));
     }
-    if (source === 'tencent') {
-      return ensureTx(symbol).then(function (s) { return s ? txQuote(symbol, s) : null; });
-    }
-    if (source === 'eastmoney') {
-      return ensureEm(symbol).then(function (s) { return s ? emQuote(symbol, s) : null; });
-    }
-    if (source === 'tradingview') {
-      return ensureTv(symbol).then(function (d) { return d ? tvQuote(symbol, d) : null; });
-    }
-    if (source === 'ths') {
-      return ensureThs(symbol).then(function (s) { return s ? thsQuote(symbol, s) : null; });
-    }
-    if (source === 'stockapiFundamentals') {
-      // lazy per-symbol, gated on the session flag plus its own cooldown so a
-      // fundamentals outage never touches the quote warm's 'stockapi' entry
-      if (stockapiState !== 'ready' || isDown('stockapi-fund')) return Promise.resolve(null);
-      return stockapiFundamentals(symbol).then(null, function (err) {
-        if (err && err.network) markDown('stockapi-fund');
-        return null; // HTTP errors (404/502) just fall through to yahoo
-      });
-    }
-    // yahoo: per-symbol only, never pre-warmed, circuit-broken
-    if (!yahooDirect || circuitOpen()) return Promise.resolve(null);
-    return yahooDirect.getQuote(symbol).then(function (yq) {
-      recordYahooSuccess();
-      return yq;
-    }, function () {
-      recordYahooFailure();
-      return null;
+    // stockapiFundamentals: lazy per-symbol, gated on the session flag plus
+    // its own cooldown so a fundamentals outage never touches the quote warm
+    if (stockapiState !== 'ready' || isDown('stockapi-fund')) return Promise.resolve(null);
+    return stockapiFundamentals(symbol).then(null, function (err) {
+      if (err && err.network) markDown('stockapi-fund');
+      return null; // HTTP errors (404/502) simply leave fields null
     });
   }
 
@@ -929,7 +424,7 @@
       chain = chain.then(function () {
         return quoteFrom(src, q.symbol).then(function (partial) {
           // fundamentals from the Worker credit the same 'stockapi' label
-          fillFrom(q, partial, src === 'stockapiFundamentals' ? 'stockapi' : src, contributors);
+          fillFrom(q, partial, 'stockapi', contributors);
         });
       });
     });
@@ -947,10 +442,8 @@
     }
     var done = function (q) { cacheSet(key, q); return q; };
 
-    // Wait for the batch warm (tencent/eastmoney/tradingview) so the walk
-    // reads snapshots instead of firing one request per symbol per source.
-    // THS warms off the critical path; its ensure dedups against the walk.
-    // StockAPI is read-only from its warm snapshot (see quoteFrom).
+    // Wait for the batch quote warm so the walk reads snapshots instead of
+    // firing one request per symbol.
     var ready = batchReady || Promise.resolve();
     return ready.then(function () {
       var q = emptyQuote(symbol);
@@ -973,34 +466,46 @@
     });
   }
 
-  var EM_INDEX_SECIDS = {
-    '^GSPC': '100.SPX', '^IXIC': '100.NDX', '^HSI': '100.HSI',
-    '000300.SS': '1.000300', '^N225': '100.N225'
-  };
+  // Tracked index symbols (markets.js INDEX_SYMBOLS) are already canonical.
+  // One batch request covers every index and fills all their caches at once.
+  // initTicker fires one getChart per index concurrently, so the batch is
+  // deduped through a shared inflight promise — parallel identical batches
+  // would multiply the Worker's upstream fan-out and get it rate-limited.
+  var INDEX_CANONICALS = ['^GSPC', '^IXIC', '^HSI', '000300.SS', '^N225'];
+  var indexChartsInflight = null;
 
-  // Eastmoney index batch — one request covers every index and fills all
-  // their caches at once. Primary for charts; Yahoo is the fallback.
-  function emIndexChart(symbol) {
-    if (!EM_INDEX_SECIDS[symbol]) return Promise.reject(new Error('no eastmoney index for ' + symbol));
-    var secids = Object.keys(EM_INDEX_SECIDS).map(function (k) { return EM_INDEX_SECIDS[k]; });
-    return emFetchUlist(secids, 'f2,f3,f4,f12,f13,f14').then(function (map) {
-      Object.keys(EM_INDEX_SECIDS).forEach(function (yahooSym) {
-        var row = map[EM_INDEX_SECIDS[yahooSym]];
-        if (row && emNum(row.f2) !== null) {
-          cacheSet('sern-chart-' + yahooSym, {
-            symbol: yahooSym,
-            name: row.f14 || yahooSym,
-            price: emNum(row.f2),
-            previousClose: null,
-            changePct: emNum(row.f3) !== null ? row.f3 / 100 : null,
-            currency: null,
-            source: 'eastmoney'
-          });
-        }
+  function fetchIndexCharts() {
+    if (indexChartsInflight) return indexChartsInflight;
+    indexChartsInflight = fetchIndexBatch().then(function (v) {
+      indexChartsInflight = null;
+      return v;
+    }, function (e) {
+      indexChartsInflight = null;
+      throw e;
+    });
+    return indexChartsInflight;
+  }
+
+  function fetchIndexBatch() {
+    var url = STOCKAPI_ORIGIN + '/v1/quote?symbols=' + INDEX_CANONICALS.map(encodeURIComponent).join(',');
+    return fetchStockapi(url).then(function (text) {
+      var json;
+      try { json = JSON.parse(text); } catch (e) { json = null; }
+      ((json && json.data) || []).forEach(function (item) {
+        if (!item || item.error || typeof item.symbol !== 'string') return;
+        var price = num(item.price);
+        var cp = num(item.change_pct);
+        if (price === null || cp === null) return;
+        cacheSet('sern-chart-' + item.symbol, {
+          symbol: item.symbol,
+          name: typeof item.name === 'string' ? item.name : item.symbol,
+          price: price,
+          previousClose: num(item.pre_close),
+          changePct: cp / 100,
+          currency: item.currency || null,
+          source: 'stockapi'
+        });
       });
-      var hit = cacheEntry('sern-chart-' + symbol);
-      if (!hit) throw new Error('index missing in eastmoney batch');
-      return hit.data;
     });
   }
 
@@ -1008,129 +513,35 @@
     var key = 'sern-chart-' + symbol;
     var hit = cacheEntry(key);
     if (hit) return Promise.resolve(hit.data);
-    return emIndexChart(symbol).then(null, function () {
-      return yahooDirect.getChart(symbol).then(function (out) {
-        out.source = 'yahoo';
-        cacheSet(key, out);
-        return out;
-      });
+    return fetchIndexCharts().then(function () {
+      var done = cacheEntry(key);
+      if (!done) throw new Error('index missing in stockapi batch for ' + symbol);
+      return done.data;
     });
   }
 
-  function emKline(secid) {
-    var url = 'https://push2his.eastmoney.com/api/qt/stock/kline/get?secid=' + secid +
-      '&fields1=f1,f2,f3,f4,f5,f6&fields2=f51,f53&klt=101&fqt=1&end=20500101&lmt=60';
-    return fetch(url).then(function (res) {
-      if (!res.ok) throw new Error('HTTP ' + res.status);
-      return res.text();
-    }).then(function (text) {
-      var json = JSON.parse(text);
-      if (!json || json.rc !== 0 || !json.data || !json.data.klines) throw new Error('eastmoney kline rc');
-      var points = [];
-      json.data.klines.forEach(function (line) {
-        var close = parseFloat(String(line).split(',')[1]);
-        if (isFinite(close)) points.push(close);
-      });
-      if (points.length < 2) throw new Error('kline too short');
-      return points;
-    });
-  }
-
-  // Tencent ifzq kline — the endpoint behind akshare's stock_zh_a_hist_tx /
-  // stock_hk_hist_tx. CORS-open; A-shares answer with qfqday (前复权),
-  // HK/US with day. Solid for A/HK; US responses are sparse, where a
-  // too-short result simply hides the sparkline as before.
-  function parseIfzqKline(text, code) {
-    var json;
-    try { json = JSON.parse(text); } catch (e) { return []; }
-    var node = json && json.data && json.data[code];
-    if (!node) return [];
-    var rows = node.qfqday || node.day || [];
-    var dated = [];
-    rows.forEach(function (r) {
-      var close = parseFloat(r[2]); // [date, open, close, high, low, volume, ...]
-      if (r[0] && isFinite(close)) dated.push([String(r[0]), close]);
-    });
-    // defensive: US responses can prepend a stray first-ever bar
-    dated.sort(function (a, b) { return a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0; });
-    return dated.slice(-60).map(function (r) { return r[1]; });
-  }
-
-  function ifzqKline(symbol) {
-    // txCode already yields the 5-digit HK form (hk00700) ifzq requires
-    var code = txCode(symbol);
-    if (!code) return Promise.reject(new Error('no ifzq code for ' + symbol));
-    var url = 'https://web.ifzq.gtimg.cn/appstock/app/fqkline/get?param=' +
-      code + ',day,,,60,qfq';
-    return fetch(url).then(function (res) {
-      if (!res.ok) throw new Error('HTTP ' + res.status);
-      return res.text();
-    }).then(function (text) {
-      var points = parseIfzqKline(text, code);
-      if (points.length < 2) throw new Error('ifzq kline too short');
-      return points;
-    });
-  }
-
-  // Spark chain: StockAPI kline -> Eastmoney -> Tencent ifzq -> Yahoo.
-  // For JP/KR/TW/EU names StockAPI and the first two reject instantly, so
-  // Yahoo still effectively serves them.
   function getSpark(symbol) {
     var key = 'sern-spark-' + symbol;
     var hit = cacheEntry(key);
     if (hit) return Promise.resolve(hit.data);
-    function store(points, source) {
-      var out = { symbol: symbol, points: points, source: source };
+    if (stockapiState !== 'ready' || isDown('stockapi')) {
+      return Promise.reject(new Error('stockapi not ready'));
+    }
+    return stockapiKline(symbol).then(function (points) {
+      var out = { symbol: symbol, points: points, source: 'stockapi' };
       cacheSet(key, out);
       return out;
-    }
-    function fallbackChain() {
-      // A/HK shares have deterministic secids; US kline sits on 105 for
-      // Nasdaq names — best effort only, failure moves down the chain
-      var secid = emSecid(symbol) || (symbol.indexOf('.') === -1 ? '105.' + symbol : null);
-      var emAttempt = secid ? emKline(secid) : Promise.reject(new Error('no eastmoney kline for ' + symbol));
-      return emAttempt.then(function (points) {
-        return store(points, 'eastmoney');
-      }, function () {
-        return ifzqKline(symbol).then(function (points) {
-          return store(points, 'tencent');
-        }, function () {
-          return yahooDirect.getSpark(symbol).then(function (out) {
-            out.source = 'yahoo';
-            cacheSet(key, out);
-            return out;
-          });
-        });
-      });
-    }
-    // StockAPI is warm-gated like quotes; its own per-symbol upstream miss
-    // (HTTP error) falls through, only network-level errors cool it down
-    var stockapiAttempt = (stockapiState === 'ready' && !isDown('stockapi') && stockapiSymbol(symbol))
-      ? stockapiKline(symbol).then(function (points) { return store(points, 'stockapi'); })
-      : Promise.reject(new Error('stockapi not used'));
-    return stockapiAttempt.then(null, function (err) {
+    }, function (err) {
       if (err && err.network) markDown('stockapi');
-      return fallbackChain();
+      throw err;
     });
   }
 
   function refreshQuote(symbol) {
     cacheRemove('sern-quote-' + symbol);
 
-    // Manual retry must re-run the full chain for this symbol instead of
-    // reusing warmed snapshots or honoring a source's recent cooldown.
-    [txCode(symbol), txAdrCode(symbol)].forEach(function (code) {
-      if (code) delete txSnapshots[code];
-    });
-    var secid = emSecid(symbol);
-    if (secid) delete emSnapshots[secid];
-    tvCandidates(symbol).forEach(function (ticker) {
-      delete tvSnapshots[ticker];
-    });
-    var ths = thsCode(symbol);
-    if (ths) delete thsSnapshots[ths];
-
-    resetCircuit();
+    // Manual retry re-runs the fetch path for this symbol instead of reusing
+    // the warmed snapshot or honoring a recent cooldown.
     resetSourceCooldowns();
 
     if (stockapiSymbol(symbol)) {
@@ -1150,17 +561,12 @@
   }
 
   // -------------------- prefetch --------------------
-  // The batch-warmed snapshots are the PRIMARY quote input (Yahoo-last
-  // chain), so warming runs immediately at load, not on idle. The three
-  // batchable sources warm in parallel; getQuote awaits batchReady.
-  // THS can't batch — it warms sequentially in the background, off the
-  // critical path (getQuote's ensureThs dedups against this warm).
-  // StockAPI batches but also warms off-path, behind its session flag.
+  // The batch-warmed snapshot is the primary quote input, so warming runs
+  // immediately at load; getQuote awaits batchReady before walking.
   var batchReady = null;
 
-  // limited-concurrency runner: strictly sequential chunks made the batch
-  // warm the critical-path bottleneck for the first quote (Yahoo-last
-  // chain), so chunks overlap a little without hammering any one host
+  // limited-concurrency runner: chunks overlap a little without hammering
+  // the Worker
   function runChunks(items, size, fn) {
     var queue = items.slice();
     function worker() {
@@ -1181,75 +587,7 @@
 
   function prefetch() {
     var universe = window.SERN.universe || [];
-    var codes = [];
-    var secids = [];
-    var tickers = [];
-    universe.forEach(function (u) {
-      var c = txCode(u.symbol);
-      if (c) codes.push(c);
-      var a = txAdrCode(u.symbol);
-      if (a) codes.push(a);
-      var s = emSecid(u.symbol);
-      if (s) secids.push(s);
-      tvCandidates(u.symbol).forEach(function (t) { tickers.push(t); });
-    });
-    codes = codes.filter(function (code, i) {
-      return codes.indexOf(code) === i;
-    });
-
-    var txChain = runChunks(chunkOf(codes, 40), 3, function (chunk) {
-      return fetchTx(chunk).then(mergeTx);
-    });
-    var tvChain = runChunks(chunkOf(tickers, 50), 3, function (chunk) {
-      return fetchTv(chunk).then(mergeTv);
-    });
-    var emTasks = [];
-    var domesticSecids = secids.filter(function (secid) { return !emIsGlobal(secid); });
-    var globalSecids = secids.filter(emIsGlobal);
-    if (domesticSecids.length) {
-      emTasks.push(
-        emFetchUlist(domesticSecids, 'f2,f3,f9,f12,f13,f14,f20,f23').then(function (map) {
-          Object.keys(map).forEach(function (secid) {
-            emSnapshots[secid] = emQuoteRow(map[secid]);
-          });
-        })
-      );
-    }
-    if (globalSecids.length) {
-      // The single-stock endpoint rate-limits bursts. Warm sequentially with
-      // a small gap; suppress its cooldown so one transient Empty reply does
-      // skip the remaining markets. Lazy per-symbol fetches still mark down.
-      var globalChain = Promise.resolve();
-      globalSecids.forEach(function (secid) {
-        globalChain = globalChain.then(function () {
-          return emFetchStock(secid, true).then(function (row) {
-            emSnapshots[secid] = row;
-          }).catch(function () {}).then(function () {
-            return new Promise(function (resolve) { setTimeout(resolve, 700); });
-          });
-        });
-      });
-      emTasks.push(globalChain);
-    }
-    var emChain = emTasks.length ? Promise.all(emTasks).catch(function () {}) : Promise.resolve();
-
-    batchReady = Promise.all([txChain, tvChain, emChain]);
-
-    // THS warms one symbol at a time in the background. ensureThs never
-    // rejects and respects the source cooldown, so a THS outage shortens
-    // the remaining chain instead of hammering the host.
-    var thsChain = Promise.resolve();
-    universe.forEach(function (u) {
-      if (thsCode(u.symbol)) {
-        thsChain = thsChain.then(function () { return ensureThs(u.symbol); });
-      }
-    });
-
-    // StockAPI warms off the critical path too: snapshots feed the top of
-    // the quote chain, but on networks where the origin is unreachable the
-    // warm fails out and flips to 'down' — batchReady never waits for it.
-    warmStockapi(universe.map(function (u) { return u.symbol; }));
-
+    batchReady = warmStockapi(universe.map(function (u) { return u.symbol; }));
     return batchReady;
   }
 
@@ -1261,6 +599,7 @@
     getQuote: getQuote,
     getChart: getChart,
     getSpark: getSpark,
+    getCandles: getCandles,
     refreshQuote: refreshQuote,
     clearCache: clearCache,
     prefetch: prefetch,
@@ -1271,20 +610,12 @@
     // /tmp, not committed — AGENTS.md defines manual smoke testing) can
     // exercise them outside the DOM
     _test: {
-      thsCode: thsCode,
-      parseThsNumber: parseThsNumber,
-      parseThsFinance: parseThsFinance,
-      thsQuote: thsQuote,
       stockapiSymbol: stockapiSymbol,
       parseStockapiQuotes: parseStockapiQuotes,
       parseStockapiKline: parseStockapiKline,
+      parseStockapiCandles: parseStockapiCandles,
       parseStockapiFundamentals: parseStockapiFundamentals,
       stockapiQuote: stockapiQuote,
-      txCode: txCode,
-      emSecid: emSecid,
-      parseIfzqKline: parseIfzqKline,
-      emFetchUlist: emFetchUlist,
-      emQuoteRow: emQuoteRow,
       resetCooldowns: function () {
         resetSourceCooldowns();
       }

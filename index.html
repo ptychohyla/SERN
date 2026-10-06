@@ -3,14 +3,14 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>SERN FinTech - Quantitative Intelligence</title>
+  <title data-i18n="home.title">SERN FinTech - Quantitative Intelligence</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="css/style.css?v=20261005c">
-  <link rel="icon" type="image/svg+xml" href="favicon.svg?v=20261005c">
-  <link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png?v=20261005c">
-  <link rel="apple-touch-icon" href="apple-touch-icon.png?v=20261005c">
+  <link rel="stylesheet" href="css/style.css?v=20261007n">
+  <link rel="icon" type="image/svg+xml" href="favicon.svg?v=20261007n">
+  <link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png?v=20261007n">
+  <link rel="apple-touch-icon" href="apple-touch-icon.png?v=20261007n">
 </head>
 <body>
   <canvas id="particle-canvas" class="particle-canvas"></canvas>
@@ -30,12 +30,12 @@
         <span class="logo-text">SERN FinTech</span>
       </a>
       <ul class="nav-links" id="nav-links">
-        <li><a href="markets.html">Markets</a></li>
-        <li><a href="#products">Products</a></li>
-        <li><a href="#research">Research</a></li>
-        <li><a href="#technology">Technology</a></li>
-        <li><a href="#about">About</a></li>
-        <li><a href="mailto:hinsyeow@outlook.com">Contact</a></li>
+        <li><a href="markets.html" data-i18n="nav.markets">Markets</a></li>
+        <li><a href="#products" data-i18n="nav.products">Products</a></li>
+        <li><a href="#research" data-i18n="nav.research">Research</a></li>
+        <li><a href="#technology" data-i18n="nav.technology">Technology</a></li>
+        <li><a href="#about" data-i18n="nav.about">About</a></li>
+        <li><a href="mailto:hinsyeow@outlook.com" data-i18n="nav.contact">Contact</a></li>
       </ul>
       <button type="button" class="nav-toggle" id="nav-toggle" aria-expanded="false" aria-controls="nav-links" aria-label="Menu">
         <span class="nav-toggle-box" aria-hidden="true">
@@ -43,6 +43,16 @@
           <span class="nav-toggle-line"></span>
           <span class="nav-toggle-line"></span>
         </span>
+      </button>
+      <button type="button" id="lang-toggle" class="lang-toggle" aria-label="Switch to 中文">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="m5 8 6 6"></path>
+          <path d="m4 14 6-6 2-3"></path>
+          <path d="M2 5h12"></path>
+          <path d="M7 2h1"></path>
+          <path d="m22 22-5-10-5 10"></path>
+          <path d="M14 18h6"></path>
+        </svg>
       </button>
     </div>
   </nav>
@@ -52,17 +62,17 @@
     <div class="container hero-container">
       <div class="hero-content">
         <h1 class="hero-title">
-          Quantitative Intelligence<br>
-          <span class="text-gradient">For Modern Markets</span>
+          <span data-i18n="home.hero.title-1">Quantitative Intelligence</span><br>
+          <span class="text-gradient" data-i18n="home.hero.title-2">For Modern Markets</span>
         </h1>
         <p class="hero-subtitle">
-          LLM-powered quantitative infrastructure<br>
-          for strategy tracking, backtesting,<br>
-          and algorithmic research
+          <span data-i18n="home.hero.sub-1">LLM-powered quantitative infrastructure</span><br>
+          <span data-i18n="home.hero.sub-2">for strategy tracking, backtesting,</span><br>
+          <span data-i18n="home.hero.sub-3">and algorithmic research</span>
         </p>
         <div class="hero-buttons">
-          <a href="#" class="btn btn-primary">Explore Platform</a>
-          <a href="#" class="btn btn-outline">View Strategies</a>
+          <a href="#" class="btn btn-primary" data-i18n="home.hero.explore">Explore Platform</a>
+          <a href="#" class="btn btn-outline" data-i18n="home.hero.strategies">View Strategies</a>
         </div>
       </div>
       <div class="hero-visual">
@@ -76,36 +86,36 @@
     <div class="container stats-container">
       <div class="stat-item">
         <div class="stat-value">$12.8B<span class="stat-plus">+</span></div>
-        <div class="stat-label">Backtested Volume</div>
+        <div class="stat-label" data-i18n="home.stat.backtested">Backtested Volume</div>
       </div>
       <div class="stat-divider"></div>
       <div class="stat-item">
         <div class="stat-value">97.3<span class="stat-percent">%</span></div>
-        <div class="stat-label">Strategy Stability</div>
+        <div class="stat-label" data-i18n="home.stat.stability">Strategy Stability</div>
       </div>
       <div class="stat-divider"></div>
       <div class="stat-item">
         <div class="stat-value">4.2<span class="stat-unit">ms</span></div>
-        <div class="stat-label">Execution Latency</div>
+        <div class="stat-label" data-i18n="home.stat.latency">Execution Latency</div>
       </div>
     </div>
   </section>
 
   <section class="solutions" id="products">
     <div class="container">
-      <h2 class="section-title">Our Solutions</h2>
+      <h2 class="section-title" data-i18n="home.solutions.title">Our Solutions</h2>
       <div class="solutions-grid">
         <div class="solution-card">
           <div class="card-header">
-            <h3>Quant Strategy Tracking</h3>
+            <h3 data-i18n="home.solutions.tracking">Quant Strategy Tracking</h3>
           </div>
           <div class="card-metrics">
             <div class="metric-row">
-              <span class="metric-name">Sharpe Ratio</span>
+              <span class="metric-name" data-i18n="home.solutions.sharpe">Sharpe Ratio</span>
               <span class="metric-value">1.45</span>
             </div>
             <div class="metric-row">
-              <span class="metric-name">Max Drawdown</span>
+              <span class="metric-name" data-i18n="home.solutions.drawdown">Max Drawdown</span>
               <span class="metric-value negative">-6.8%</span>
             </div>
           </div>
@@ -117,12 +127,12 @@
 
         <div class="solution-card">
           <div class="card-header">
-            <h3>Advanced Backtesting</h3>
+            <h3 data-i18n="home.solutions.backtesting">Advanced Backtesting</h3>
           </div>
           <ul class="card-list">
-            <li><span class="bullet"></span>Tick-Level Simulation</li>
-            <li><span class="bullet"></span>Multi-Factor Engine</li>
-            <li><span class="bullet"></span>Risk Analysis</li>
+            <li><span class="bullet"></span><span data-i18n="home.solutions.tick">Tick-Level Simulation</span></li>
+            <li><span class="bullet"></span><span data-i18n="home.solutions.multifactor">Multi-Factor Engine</span></li>
+            <li><span class="bullet"></span><span data-i18n="home.solutions.risk">Risk Analysis</span></li>
           </ul>
           <canvas id="chart2" class="card-chart" width="320" height="110"></canvas>
           <div class="card-x-labels">
@@ -132,12 +142,12 @@
 
         <div class="solution-card">
           <div class="card-header">
-            <h3>AI & Data Research</h3>
+            <h3 data-i18n="home.solutions.research">AI & Data Research</h3>
           </div>
           <ul class="card-list">
-            <li><span class="bullet"></span>LLM Signal Analysis</li>
-            <li><span class="bullet"></span>Market Regime Detection</li>
-            <li><span class="bullet"></span>Alt Data Intelligence</li>
+            <li><span class="bullet"></span><span data-i18n="home.solutions.llm">LLM Signal Analysis</span></li>
+            <li><span class="bullet"></span><span data-i18n="home.solutions.regime">Market Regime Detection</span></li>
+            <li><span class="bullet"></span><span data-i18n="home.solutions.altdata">Alt Data Intelligence</span></li>
           </ul>
           <canvas id="chart3" class="card-chart candlestick-chart" width="320" height="110"></canvas>
         </div>
@@ -149,17 +159,17 @@
     <div class="container stats-container">
       <div class="stat-item">
         <div class="stat-value">10B<span class="stat-plus">+</span></div>
-        <div class="stat-label">Data Points Processed</div>
+        <div class="stat-label" data-i18n="home.stat.datapoints">Data Points Processed</div>
       </div>
       <div class="stat-divider"></div>
       <div class="stat-item">
         <div class="stat-value">120<span class="stat-plus">+</span></div>
-        <div class="stat-label">Strategies Deployed</div>
+        <div class="stat-label" data-i18n="home.stat.deployed">Strategies Deployed</div>
       </div>
       <div class="stat-divider"></div>
       <div class="stat-item">
-        <div class="stat-value">15 <span class="stat-small">Years</span></div>
-        <div class="stat-label">Historical Data</div>
+        <div class="stat-value">15 <span class="stat-small" data-i18n="home.stat.years-unit">Years</span></div>
+        <div class="stat-label" data-i18n="home.stat.historical">Historical Data</div>
       </div>
     </div>
   </section>
@@ -167,8 +177,8 @@
   <section class="analysis" id="research">
     <div class="container analysis-container">
       <div class="analysis-text">
-        <h2 class="section-title">Robust Performance Analysis</h2>
-        <p class="analysis-subtitle">In-Depth Risk Metrics</p>
+        <h2 class="section-title" data-i18n="home.analysis.title">Robust Performance Analysis</h2>
+        <p class="analysis-subtitle" data-i18n="home.analysis.subtitle">In-Depth Risk Metrics</p>
         <div class="analysis-dots">
           <span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="dot"></span>
           <span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="dot"></span>
@@ -177,8 +187,8 @@
       </div>
       <div class="analysis-chart-wrapper">
         <div class="analysis-chart-header">
-          <h4>Portfolio Analysis</h4>
-          <span class="badge">Net Return</span>
+          <h4 data-i18n="home.analysis.portfolio">Portfolio Analysis</h4>
+          <span class="badge" data-i18n="home.analysis.netreturn">Net Return</span>
         </div>
         <canvas id="portfolio-chart" width="500" height="220"></canvas>
         <div class="chart-x-labels">
@@ -191,7 +201,7 @@
 
   <section class="partners">
     <div class="container">
-      <h2 class="section-title center">Trusted By Industry Leaders</h2>
+      <h2 class="section-title center" data-i18n="home.partners.title">Trusted By Industry Leaders</h2>
       <div class="partners-grid">
         <div class="partner-item">
           <div class="partner-icon">
@@ -234,8 +244,8 @@
   <div class="cta-footer-wrap">
     <section class="cta" id="contact">
       <div class="container cta-container">
-        <h2 class="cta-title">Ready to Transform Your Strategy?</h2>
-        <a href="mailto:hinsyeow@outlook.com" class="btn btn-primary btn-large">Contact Us</a>
+        <h2 class="cta-title" data-i18n="home.cta.title">Ready to Transform Your Strategy?</h2>
+        <a href="mailto:hinsyeow@outlook.com" class="btn btn-primary btn-large" data-i18n="home.cta.contact">Contact Us</a>
       </div>
     </section>
 
@@ -253,42 +263,43 @@
                 </span>
                 <span class="logo-text">SERN FinTech</span>
               </a>
-              <p class="footer-desc">LLM-powered quantitative infrastructure for modern markets.</p>
+              <p class="footer-desc" data-i18n="home.footer.desc">LLM-powered quantitative infrastructure for modern markets.</p>
             </div>
             <div class="footer-links-col">
-              <h4>Products</h4>
+              <h4 data-i18n="nav.products">Products</h4>
               <ul>
-                <li><a href="#">Strategy Tracking</a></li>
-                <li><a href="#">Backtesting</a></li>
-                <li><a href="#">AI Research</a></li>
+                <li><a href="#" data-i18n="home.footer.tracking">Strategy Tracking</a></li>
+                <li><a href="#" data-i18n="home.footer.backtesting">Backtesting</a></li>
+                <li><a href="#" data-i18n="home.footer.airesearch">AI Research</a></li>
               </ul>
             </div>
             <div class="footer-links-col">
-              <h4>Company</h4>
+              <h4 data-i18n="home.footer.company">Company</h4>
               <ul>
-                <li><a href="#">About</a></li>
-                <li><a href="#">Research</a></li>
-                <li><a href="#">Careers</a></li>
+                <li><a href="#" data-i18n="nav.about">About</a></li>
+                <li><a href="#" data-i18n="nav.research">Research</a></li>
+                <li><a href="#" data-i18n="home.footer.careers">Careers</a></li>
               </ul>
             </div>
             <div class="footer-links-col">
-              <h4>Legal</h4>
+              <h4 data-i18n="home.footer.legal">Legal</h4>
               <ul>
-                <li><a href="#">Privacy</a></li>
-                <li><a href="#">Terms</a></li>
-                <li><a href="#">Compliance</a></li>
+                <li><a href="#" data-i18n="home.footer.privacy">Privacy</a></li>
+                <li><a href="#" data-i18n="home.footer.terms">Terms</a></li>
+                <li><a href="#" data-i18n="home.footer.compliance">Compliance</a></li>
               </ul>
             </div>
           </div>
           <div class="footer-bottom">
-            <p>&copy; 2024 SERN FinTech. All rights reserved.</p>
+            <p data-i18n="home.footer.rights">&copy; 2024 SERN FinTech. All rights reserved.</p>
           </div>
         </div>
       </div>
     </footer>
   </div>
 
-  <script src="js/nav.js?v=20261005c"></script>
-  <script src="js/script.js?v=20261005c"></script>
+  <script src="js/i18n.js?v=20261007n"></script>
+  <script src="js/nav.js?v=20261007n"></script>
+  <script src="js/script.js?v=20261007n"></script>
 </body>
 </html>

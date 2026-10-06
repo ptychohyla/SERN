@@ -9,7 +9,7 @@ SERN 是一个无依赖的静态网站，用于展示 SERN FinTech。请保持�
 - `css/style.css` — 全部样式，包括设计变量、响应式规则和组件布局。
 - `js/script.js` — 首页 IIFE，包含 Canvas 动画、图表及初始化逻辑。
 - `js/nav.js` — 首页与市场页共用的移动端导航（汉堡菜单开关）。
-- `js/market-data.js` 等 — 市场页的多源行情编排、评分模型与渲染逻辑。
+- `js/market-data.js` — 市场页行情数据层：全部请求单走自有 StockAPI Worker（stockapi.hinsyeow.org，报价 /v1/quote、基本面 /v1/fundamentals、K 线 /v1/kline），无浏览器端多源回退。
 - `demo/` — 预览截图，仅供参考，不属于运行时资源。
 
 当前没有代码生成层、包管理清单或测试目录。

@@ -20,36 +20,56 @@
   var MARKET_COLORS = { US: '#3b82f6', CN: '#ef4444', HK: '#f97316', JP: '#22c55e', KR: '#06b6d4', TW: '#eab308', EU: '#a855f7' };
 
   // ==================== State ====================
-  var HEAT_MODES = ['change', 'score'];
-  var savedHeatMode = localStorage.getItem('sern-heat-mode');
   var state = {
     model: localStorage.getItem('sern-model') || 'multifactor',
     entries: [],
-    done: 0,
-    failed: 0,
     loading: true,
-    watchOnly: false,
     scores: null,
-    updatedAt: null,
     drawerSymbol: null,
-    heatMode: HEAT_MODES.indexOf(savedHeatMode) !== -1 ? savedHeatMode : 'change'
+    drawerEntry: null
   };
 
-  function getWatchlist() {
-    try { return JSON.parse(localStorage.getItem('sern-watchlist') || '[]'); }
+  // ==================== Favorites ====================
+  // Starred stocks are forced into the heatmap and the ranking board, marked
+  // with a ★. Storefront metadata is persisted so off-universe picks (from
+  // search) survive reloads; they join a dedicated "favorites" sector bucket.
+  function getFavorites() {
+    try { return JSON.parse(localStorage.getItem('sern-favorites') || '[]'); }
     catch (e) { return []; }
   }
-  function setWatchlist(list) {
-    localStorage.setItem('sern-watchlist', JSON.stringify(list));
+  function setFavorites(list) {
+    localStorage.setItem('sern-favorites', JSON.stringify(list));
   }
-  function isWatched(symbol) {
-    return getWatchlist().indexOf(symbol) !== -1;
+  function isFavorite(symbol) {
+    var favs = getFavorites();
+    for (var i = 0; i < favs.length; i++) {
+      if (favs[i].symbol === symbol) return true;
+    }
+    return false;
   }
-  function toggleWatch(symbol) {
-    var list = getWatchlist();
-    var i = list.indexOf(symbol);
-    if (i === -1) list.push(symbol); else list.splice(i, 1);
-    setWatchlist(list);
+  function universeMeta(symbol) {
+    var u = window.SERN.universe || [];
+    for (var i = 0; i < u.length; i++) {
+      if (u[i].symbol === symbol) return u[i];
+    }
+    return null;
+  }
+  function favoriteMeta(symbol) {
+    // pool stocks keep their real sector; off-pool picks live in one bucket
+    var meta = universeMeta(symbol);
+    if (meta) return meta;
+    var favs = getFavorites();
+    for (var i = 0; i < favs.length; i++) {
+      if (favs[i].symbol === symbol) {
+        return {
+          symbol: symbol,
+          name: favs[i].name || { en: symbol, zh: symbol },
+          market: favs[i].market || null,
+          sector: 'favorites'
+        };
+      }
+    }
+    return null;
   }
 
   // ==================== Formatting ====================
@@ -75,14 +95,6 @@
     if (value >= 1e6) return sym + (value / 1e6).toFixed(0) + 'M';
     return sym + value.toFixed(0);
   }
-  function fmtTime(ts) {
-    if (!ts) return '';
-    var d = new Date(ts);
-    var pad = function (n) { return n < 10 ? '0' + n : '' + n; };
-    return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()) +
-      ' ' + pad(d.getHours()) + ':' + pad(d.getMinutes());
-  }
-
   // Scoring lives in js/scoring.js (window.SERN.scoring) — pure functions,
   // shared by this page and verifiable outside the DOM.
 
@@ -98,8 +110,8 @@
     var svgNS = 'http://www.w3.org/2000/svg';
     var svg = document.createElementNS(svgNS, 'svg');
     svg.setAttribute('viewBox', '0 0 24 24');
-    svg.setAttribute('width', '16');
-    svg.setAttribute('height', '16');
+    svg.setAttribute('width', '18');
+    svg.setAttribute('height', '18');
     var path = document.createElementNS(svgNS, 'path');
     path.setAttribute('d', 'M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z');
     path.setAttribute('fill', filled ? 'currentColor' : 'none');
@@ -110,53 +122,172 @@
   }
 
   // ==================== Ticker bar ====================
+  // Index chips: name / level / change on the left, a mini candlestick chart
+  // on the right (style per the reference: red up / green down, CN
+  // convention). Candles play in a loop — bars reveal one by one, the full
+  // chart holds, then it replays — staggered per chip so the strip ripples.
+  var KLINE_W = 84;
+  var KLINE_H = 42;
+  var KLINE_BARS = 26;        // ~一个月的交易日，实体宽度 ~2px 更清晰
+  var KLINE_BAR_MS = 34;      // per-bar reveal step
+  var KLINE_HOLD_MS = 1500;   // full-chart hold before the next replay
+  var KLINE_STAGGER_MS = 420; // per-chip start offset
+  var KLINE_RED = '#ef4444';  // --accent-red (canvas cannot read CSS vars)
+  var KLINE_GREEN = '#22c55e';
+
+  function fmtIndex(v) {
+    if (v === null || v === undefined || !isFinite(v)) return '';
+    return v.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  }
+
+  function startTickerKline(canvas, candles, idx) {
+    var DPR = window.devicePixelRatio || 1;
+    canvas.width = KLINE_W * DPR;
+    canvas.height = KLINE_H * DPR;
+    var ctx = canvas.getContext('2d');
+    ctx.scale(DPR, DPR);
+
+    var data = candles.slice(-KLINE_BARS);
+    var n = data.length;
+    var min = Infinity;
+    var max = -Infinity;
+    data.forEach(function (c) {
+      if (c.l < min) min = c.l;
+      if (c.h > max) max = c.h;
+    });
+    var range = (max - min) || 1;
+    var padY = 2;
+    var padX = 1;
+    var slot = (KLINE_W - padX * 2) / n;
+    var bodyW = Math.max(1, Math.floor(slot * 0.62));
+
+    function yOf(v) { return padY + (max - v) / range * (KLINE_H - padY * 2); }
+
+    function draw(shown) {
+      ctx.clearRect(0, 0, KLINE_W, KLINE_H);
+      for (var i = 0; i < shown; i++) {
+        var c = data[i];
+        var x = Math.round(padX + i * slot + slot / 2) + 0.5;
+        var color = c.c >= c.o ? KLINE_RED : KLINE_GREEN;
+        ctx.strokeStyle = color;
+        ctx.fillStyle = color;
+        ctx.lineWidth = 1;
+        // wick
+        ctx.beginPath();
+        ctx.moveTo(x, yOf(c.h));
+        ctx.lineTo(x, yOf(c.l));
+        ctx.stroke();
+        // body (1px minimum so doji bars stay visible)
+        var top = yOf(Math.max(c.o, c.c));
+        var bottom = yOf(Math.min(c.o, c.c));
+        ctx.fillRect(Math.round(x - bodyW / 2), Math.round(top), bodyW,
+          Math.max(1, Math.round(bottom - top)));
+      }
+    }
+
+    var reduced = window.matchMedia &&
+      window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    if (reduced) { draw(n); return; }
+
+    var startAt = performance.now() + idx * KLINE_STAGGER_MS;
+    var cycle = n * KLINE_BAR_MS + KLINE_HOLD_MS;
+    var shownBars = -1;
+    function loop() {
+      if (!document.hidden) {
+        var t = performance.now() - startAt;
+        var elapsed = t < 0 ? 0 : t % cycle;
+        var cur = Math.min(n, Math.ceil(elapsed / KLINE_BAR_MS));
+        if (cur !== shownBars) {
+          draw(cur);
+          shownBars = cur;
+        }
+      }
+      requestAnimationFrame(loop);
+    }
+    draw(0);
+    requestAnimationFrame(loop);
+  }
+
   function initTicker() {
-    var wrap = document.getElementById('index-ticker');
-    INDEX_SYMBOLS.forEach(function (symbol) {
+    var strip = document.getElementById('index-ticker');
+    var track = el('div', 'ticker-track');
+    strip.appendChild(track);
+
+    INDEX_SYMBOLS.forEach(function (symbol, idx) {
       var item = el('div', 'ticker-item');
+      item.dataset.symbol = symbol;
+      var info = el('div', 'ticker-info');
       var name = el('span', 'ticker-name', INDEX_NAMES[symbol][i18n.getLang() === 'zh' ? 'zh' : 'en']);
+      var price = el('span', 'ticker-price', '…');
       var value = el('span', 'ticker-value', '…');
-      item.appendChild(name);
-      item.appendChild(value);
-      wrap.appendChild(item);
+      info.appendChild(name);
+      info.appendChild(price);
+      info.appendChild(value);
+      item.appendChild(info);
+      item.appendChild(el('canvas', 'ticker-kline'));
+      track.appendChild(item);
+    });
+
+    // Seamless marquee: duplicate the card set until one full set's width is
+    // covered after the track shifts by exactly that set width, then let CSS
+    // translate the track and wrap. Copies are aria-hidden decoration.
+    var setW = track.scrollWidth;
+    if (setW > 0) {
+      // +2 sets of slack: covers ultra-wide windows and post-measure font
+      // metric shifts without ever re-measuring
+      var copies = Math.max(1, Math.ceil(strip.clientWidth / setW)) + 2;
+      for (var c = 1; c < copies; c++) {
+        Array.prototype.slice.call(track.children).slice(0, INDEX_SYMBOLS.length).forEach(function (node) {
+          var clone = node.cloneNode(true);
+          clone.setAttribute('aria-hidden', 'true');
+          track.appendChild(clone);
+        });
+      }
+      track.style.setProperty('--ticker-distance', setW + 'px');
+      track.style.setProperty('--ticker-duration', (setW / 45).toFixed(1) + 's');
+    }
+
+    // One fetch per index, fanned out to every copy (clones share no state).
+    INDEX_SYMBOLS.forEach(function (symbol, idx) {
       yahoo.getChart(symbol).then(function (chart) {
-        value.textContent = fmtPct(chart.changePct, 2);
-        value.classList.add(chart.changePct >= 0 ? 'up' : 'down');
+        track.querySelectorAll('[data-symbol="' + symbol + '"]').forEach(function (item) {
+          item.querySelector('.ticker-price').textContent = fmtIndex(chart.price);
+          var value = item.querySelector('.ticker-value');
+          value.textContent = fmtPct(chart.changePct, 2);
+          value.classList.add(chart.changePct >= 0 ? 'up' : 'down');
+        });
       }).catch(function () {
-        value.textContent = t('common.na');
-        value.classList.add('ticker-na');
+        track.querySelectorAll('[data-symbol="' + symbol + '"]').forEach(function (item) {
+          item.querySelector('.ticker-price').textContent = '';
+          var value = item.querySelector('.ticker-value');
+          value.textContent = t('common.na');
+          value.classList.add('ticker-na');
+        });
+      });
+
+      yahoo.getCandles(symbol).then(function (res) {
+        track.querySelectorAll('[data-symbol="' + symbol + '"] canvas').forEach(function (canvas) {
+          // same idx for every copy so the marquee shows one coherent replay
+          startTickerKline(canvas, res.candles, idx);
+        });
+      }).catch(function () {
+        track.querySelectorAll('[data-symbol="' + symbol + '"] canvas').forEach(function (canvas) {
+          canvas.style.display = 'none'; // no candle data: keep the text-only chip
+        });
       });
     });
   }
 
   // ==================== Freshness / progress ====================
   function updateFreshness() {
-    // counters are always derived from entry statuses, never incremented by
-    // callers — retries and overlapping reloads cannot double-count
-    state.done = state.entries.filter(function (e) { return e.status === 'done'; }).length;
-    state.failed = state.entries.filter(function (e) { return e.status === 'failed'; }).length;
-    // data timestamp = oldest source fetch/cache time across done entries —
-    // with a persistent cache, "loaded just now" must not masquerade as fresh
-    var dataAt = null;
-    state.entries.forEach(function (e) {
-      if (e.status !== 'done' || !e.data) return;
-      var t0 = e.data.cachedAt || state.loadStartedAt || Date.now();
-      if (dataAt === null || t0 < dataAt) dataAt = t0;
-    });
-    state.dataAt = dataAt;
-    var bar = document.getElementById('progress-bar');
-    var label = document.getElementById('progress-label');
-    var total = state.entries.length;
-    var finished = state.done + state.failed;
-    bar.style.width = (total ? finished / total * 100 : 0) + '%';
-    if (state.loading) {
-      label.textContent = t('freshness.loading') + ' ' + finished + '/' + total +
-        ' · ' + t('freshness.failed') + ' ' + state.failed;
-    } else {
-      label.textContent = t('freshness.done') + ' · ' + t('freshness.completed') + ' ' + state.done +
-        '/' + total + ' · ' + t('freshness.failed') + ' ' + state.failed +
-        (state.dataAt ? ' · ' + t('freshness.updated') + ' ' + fmtTime(state.dataAt) : '');
-    }
+    // the refresh icon's spin is the only loading indicator left
+    document.getElementById('refresh-btn').classList.toggle('is-loading', state.loading);
+  }
+
+  // Manual refresh dims the data sections until the reload settles
+  function setRefreshing(on) {
+    var main = document.querySelector('.markets-main');
+    if (main) main.classList.toggle('refreshing', !!on);
   }
 
   // ==================== Rows ====================
@@ -180,14 +311,16 @@
     row.appendChild(el('div', 'rank-num', rank));
 
     var company = el('div', 'rank-company');
-    var nameLine = el('div', 'rank-company-name', langName(entry.meta.name));
+    var nameLine = el('div', 'rank-company-name');
+    if (isFavorite(entry.meta.symbol)) nameLine.appendChild(el('span', 'rank-fav', '★'));
+    nameLine.appendChild(document.createTextNode(langName(entry.meta.name)));
     var symbolLine = el('div', 'rank-company-symbol', entry.meta.symbol);
     company.appendChild(nameLine);
     company.appendChild(symbolLine);
     row.appendChild(company);
 
     var tags = el('div', 'rank-tags');
-    tags.appendChild(marketTag(entry.meta.market));
+    if (entry.meta.market) tags.appendChild(marketTag(entry.meta.market));
     var sectorTag = el('span', 'sector-tag', t('sector.' + entry.meta.sector));
     tags.appendChild(sectorTag);
     row.appendChild(tags);
@@ -198,31 +331,13 @@
     metrics.appendChild(el('span', 'rank-metric', fmtPct(d.divYield, 2)));
     row.appendChild(metrics);
 
-    row.appendChild(scoreCell(entry.scores.valuation));
-    var compositeCell = scoreCell(entry.scores.composite);
-    compositeCell.classList.add('rank-score-composite');
-    row.appendChild(compositeCell);
-
-    var actions = el('div', 'rank-actions');
-    var star = el('button', 'star-btn' + (isWatched(entry.meta.symbol) ? ' starred' : ''));
-    star.setAttribute('aria-label', 'watch');
-    star.appendChild(starSvg(isWatched(entry.meta.symbol)));
-    star.addEventListener('click', function (ev) {
-      ev.stopPropagation();
-      toggleWatch(entry.meta.symbol);
-      star.classList.toggle('starred');
-      star.textContent = '';
-      star.appendChild(starSvg(isWatched(entry.meta.symbol)));
-      if (state.watchOnly) renderBoards();
-    });
-    actions.appendChild(star);
-    row.appendChild(actions);
+    row.appendChild(scoreCell(entry.scores.composite));
 
     row.addEventListener('click', function () { openDrawer(entry.meta.symbol); });
     return row;
   }
 
-  function headerRow(extra) {
+  function headerRow() {
     var head = el('div', 'rank-row rank-head');
     head.appendChild(el('div', 'rank-num', t('col.rank')));
     head.appendChild(el('div', 'rank-company', t('col.company')));
@@ -232,87 +347,40 @@
     metricHead.appendChild(el('span', '', t('col.pb')));
     metricHead.appendChild(el('span', '', t('col.dividend')));
     head.appendChild(metricHead);
-    head.appendChild(el('div', 'rank-score', t('col.valuation')));
-    if (extra) head.appendChild(el('div', 'rank-score rank-score-composite', t('col.composite')));
-    head.appendChild(el('div', 'rank-actions'));
+    head.appendChild(el('div', 'rank-score', t('col.score')));
     return head;
   }
 
-  function miniBars(scores) {
-    var wrap = el('div', 'mini-bars');
-    [['valuation', scores.valuation], ['quality', scores.quality], ['growth', scores.growth]].forEach(function (pair) {
-      var col = el('div', 'mini-bar-col');
-      var track = el('div', 'mini-bar-track');
-      var fill = el('div', 'mini-bar-fill mini-bar-' + pair[0]);
-      fill.style.width = (pair[1] === null ? 0 : pair[1]) + '%';
-      track.appendChild(fill);
-      col.appendChild(el('span', 'mini-bar-label', t('score.' + pair[0])));
-      col.appendChild(track);
-      wrap.appendChild(col);
-    });
-    return wrap;
-  }
-
-  function buildValueCard(entry, rank) {
-    var card = el('div', 'value-card');
-    card.addEventListener('click', function () { openDrawer(entry.meta.symbol); });
-
-    var top = el('div', 'value-card-top');
-    var rankBadge = el('span', 'value-rank', '#' + rank);
-    var nameWrap = el('div', 'value-card-name-wrap');
-    nameWrap.appendChild(el('span', 'value-card-name', langName(entry.meta.name)));
-    var sub = el('span', 'value-card-sub', entry.meta.symbol);
-    sub.appendChild(document.createTextNode(' · ' + t('market.' + entry.meta.market)));
-    nameWrap.appendChild(sub);
-    var score = el('span', 'value-score', fmt(entry.scores.composite, 1));
-    top.appendChild(rankBadge);
-    top.appendChild(nameWrap);
-    top.appendChild(score);
-    card.appendChild(top);
-    card.appendChild(miniBars(entry.scores));
-    return card;
-  }
-
   // ==================== Boards ====================
+  // One ranking, ordered by the composite score of the currently selected
+  // model — switching Multi-Factor / Deep Value / PEG Growth re-weights and
+  // re-orders this board (and the donuts it feeds).
   function visibleRanked() {
-    var list = state.scores.slice().sort(function (a, b) {
-      return b.scores.valuation - a.scores.valuation;
+    return state.scores.slice().sort(function (a, b) {
+      return b.scores.composite - a.scores.composite;
     });
-    if (state.watchOnly) {
-      list = list.filter(function (e) { return isWatched(e.meta.symbol); });
-    }
-    return list;
   }
 
   function renderBoards() {
     var ranked = visibleRanked();
 
-    // Top 20
     var top20 = document.getElementById('top20-body');
     top20.innerHTML = '';
     if (state.scores.length === 0) {
       top20.appendChild(el('div', 'board-placeholder', t('freshness.loading')));
-    } else if (ranked.length === 0) {
-      top20.appendChild(el('div', 'board-placeholder', t('watch.empty')));
     } else {
-      top20.appendChild(headerRow(true));
+      top20.appendChild(headerRow());
+      // starred stocks are pinned above the board with a ★, keeping their
+      // true rank number; the regular Top 20 follows under a divider
+      var pinned = ranked.filter(function (e) { return isFavorite(e.meta.symbol); });
+      if (pinned.length) {
+        pinned.forEach(function (entry) {
+          top20.appendChild(buildRow(entry, ranked.indexOf(entry) + 1));
+        });
+        top20.appendChild(el('div', 'rank-divider', t('top20.title')));
+      }
       ranked.slice(0, 20).forEach(function (entry, i) {
         top20.appendChild(buildRow(entry, i + 1));
-      });
-    }
-
-    // Top 10
-    var comp = state.scores.slice().sort(function (a, b) {
-      return b.scores.composite - a.scores.composite;
-    });
-    if (state.watchOnly) comp = comp.filter(function (e) { return isWatched(e.meta.symbol); });
-    var top10 = document.getElementById('top10-body');
-    top10.innerHTML = '';
-    if (ranked.length === 0 && state.scores.length > 0) {
-      top10.appendChild(el('div', 'board-placeholder', t('watch.empty')));
-    } else {
-      comp.slice(0, 10).forEach(function (entry, i) {
-        top10.appendChild(buildValueCard(entry, i + 1));
       });
     }
 
@@ -474,10 +542,13 @@
     ctx.fill();
   }
 
-  function scoreBreakBar(label, value, cls) {
+  function scoreBreakBar(label, value, cls, tip) {
     var col = el('div', 'score-break-col');
     var head = el('div', 'score-break-head');
-    head.appendChild(el('span', '', label));
+    var labelWrap = el('span', 'score-break-label');
+    labelWrap.appendChild(document.createTextNode(label));
+    if (tip) labelWrap.appendChild(el('span', 'score-break-help', '?'));
+    head.appendChild(labelWrap);
     head.appendChild(el('span', '', value === null ? t('common.na') : fmt(value, 1)));
     col.appendChild(head);
     var track = el('div', 'mini-bar-track');
@@ -485,7 +556,39 @@
     fill.style.width = (value === null ? 0 : value) + '%';
     track.appendChild(fill);
     col.appendChild(track);
+    if (tip) {
+      col.setAttribute('title', tip);
+      col.style.cursor = 'help';
+    }
     return col;
+  }
+
+  // ---- score derivation tooltips ----
+  // Weights come straight from SERN.scoring.models so the explanation can
+  // never drift from the scoring code.
+  var METRIC_LABEL_KEY = {
+    pe: 'drawer.pe', forwardPe: 'drawer.fpe', pb: 'drawer.pb', ps: 'drawer.ps',
+    evEbitda: 'drawer.evebitda', divYield: 'drawer.dividend', peg: 'drawer.peg',
+    roe: 'drawer.roe', fcfYield: 'metric.fcf-yield', margin: 'drawer.margin',
+    earningsGrowth: 'drawer.earnings-growth', revenueGrowth: 'drawer.revenue-growth'
+  };
+  function metricLabel(k) {
+    return t(METRIC_LABEL_KEY[k] || k);
+  }
+  function valuationTip() {
+    var cfg = window.SERN.scoring.models[state.model];
+    var weights = Object.keys(cfg.valuation).map(function (k) {
+      return metricLabel(k) + ' ' + cfg.valuation[k] + '%';
+    }).join(' · ');
+    return t('score.tip.valuation.' + (cfg.scope === 'sector' ? 'sector' : 'market')) + ' ' + weights;
+  }
+  function qualityTip() {
+    return t('score.tip.quality') + ' ' +
+      ['roe', 'fcfYield', 'margin'].map(metricLabel).join(' · ');
+  }
+  function growthTip() {
+    return t('score.tip.growth') + ' ' +
+      ['earningsGrowth', 'revenueGrowth'].map(metricLabel).join(' · ');
   }
 
   // ==================== Drawer ====================
@@ -531,22 +634,80 @@
     rows.forEach(function (r) { metrics.appendChild(metricBox(t(r[0]), r[1])); });
   }
 
+  function updateDrawerFav(entry) {
+    var btn = document.getElementById('drawer-fav');
+    var fav = isFavorite(entry.meta.symbol);
+    btn.className = 'drawer-fav' + (fav ? ' starred' : '');
+    btn.setAttribute('aria-label', t(fav ? 'favorites.remove' : 'favorites.add'));
+    btn.setAttribute('title', t(fav ? 'favorites.remove' : 'favorites.add'));
+    btn.innerHTML = '';
+    btn.appendChild(starSvg(fav));
+  }
+
+  // Star/unstar the open stock. Favoriting guarantees the stock is loaded into
+  // the pipeline (off-pool picks join a "favorites" bucket); unfavoriting an
+  // off-pool pick drops its entry again.
+  function toggleFavoriteEntry(entry) {
+    var symbol = entry.meta.symbol;
+    var favs = getFavorites();
+    var idx = -1;
+    favs.forEach(function (f, i) { if (f.symbol === symbol) idx = i; });
+
+    if (idx === -1) {
+      favs.push({
+        symbol: symbol,
+        name: entry.meta.name,
+        market: entry.meta.market || null
+      });
+      setFavorites(favs);
+      var inPipeline = state.entries.some(function (e) { return e.meta.symbol === symbol; });
+      if (!inPipeline) {
+        var meta = favoriteMeta(symbol);
+        var added = {
+          meta: meta,
+          status: entry.data ? 'done' : 'pending',
+          data: entry.data || null,
+          scores: null,
+          external: true
+        };
+        state.entries.push(added);
+        if (added.status === 'pending') {
+          // failure already marks the entry 'failed'; refresh either way
+          loadEntry(added).then(refreshAllViews, refreshAllViews);
+          scheduleRender();
+          updateFreshness();
+        }
+      }
+    } else {
+      favs.splice(idx, 1);
+      setFavorites(favs);
+      // off-pool entries only exist because of the star — remove them
+      state.entries = state.entries.filter(function (e) {
+        return !(e.external && e.meta.symbol === symbol);
+      });
+    }
+    updateDrawerFav(entry);
+    refreshAllViews();
+  }
+
   function renderDrawer(entry) {
     var symbol = entry.meta.symbol;
     state.drawerSymbol = symbol;
+    state.drawerEntry = entry;
     var drawer = document.getElementById('drawer');
     document.getElementById('drawer-overlay').classList.add('active');
     drawer.classList.add('open');
 
     document.getElementById('drawer-title').textContent = langName(entry.meta.name);
     renderDrawerSub(entry);
+    updateDrawerFav(entry);
 
     var breaks = document.getElementById('drawer-scores');
     breaks.innerHTML = '';
     if (entry.scores) {
-      breaks.appendChild(scoreBreakBar(t('score.valuation'), entry.scores.valuation, 'mini-bar-valuation'));
-      breaks.appendChild(scoreBreakBar(t('score.quality'), entry.scores.quality, 'mini-bar-quality'));
-      breaks.appendChild(scoreBreakBar(t('score.growth'), entry.scores.growth, 'mini-bar-growth'));
+      breaks.appendChild(scoreBreakBar(t('score.valuation'), entry.scores.valuation, 'mini-bar-valuation', valuationTip()));
+      breaks.appendChild(scoreBreakBar(t('score.quality'), entry.scores.quality, 'mini-bar-quality', qualityTip()));
+      breaks.appendChild(scoreBreakBar(t('score.growth'), entry.scores.growth, 'mini-bar-growth', growthTip()));
     }
 
     renderDrawerMetrics(entry);
@@ -626,6 +787,7 @@
 
   function closeDrawer() {
     state.drawerSymbol = null;
+    state.drawerEntry = null;
     document.getElementById('drawer').classList.remove('open');
     document.getElementById('drawer-overlay').classList.remove('active');
   }
@@ -687,11 +849,9 @@
     if (!window.SERN.heatmap) return;
     window.SERN.heatmap.render(document.getElementById('heatmap-body'), {
       entries: state.entries,
-      mode: state.heatMode,
-      watchOnly: state.watchOnly,
-      isWatched: isWatched,
       t: t,
       langName: langName,
+      isFavorite: isFavorite,
       onSelect: openDrawer
     });
   }
@@ -708,8 +868,18 @@
     state.entries = window.SERN.universe.map(function (meta) {
       return { meta: meta, status: 'pending', data: null, scores: null };
     });
-    state.done = 0;
-    state.failed = 0;
+    // starred off-universe picks ride along: they are forced into the heatmap
+    // and the ranking board (marked ★) alongside the regular universe
+    getFavorites().forEach(function (f) {
+      if (universeMeta(f.symbol)) return; // pool stock: already present
+      state.entries.push({
+        meta: favoriteMeta(f.symbol),
+        status: 'pending',
+        data: null,
+        scores: null,
+        external: true
+      });
+    });
     state.loading = true;
     state.loadStartedAt = Date.now();
 
@@ -717,21 +887,31 @@
       return function () { return loadEntry(entry); };
     });
 
+    // paint the empty shell (heatmap placeholder square, empty boards) up
+    // front — the first batch callback can be many seconds out on a cold cache
+    scheduleRender();
+
     runQueue(tasks, 5, function () {
-      state.updatedAt = Date.now();
       updateFreshness();
       scheduleRender();
     }).then(function () {
       state.loading = false;
-      state.updatedAt = Date.now();
       updateFreshness();
       refreshAllViews();
+      setRefreshing(false);
     });
 
     updateFreshness();
   }
 
   // ==================== Controls ====================
+  // The scoring-principle note under the model switcher follows the selected
+  // strategy (and the active language).
+  function updateModelNote() {
+    var note = document.getElementById('model-note');
+    if (note) note.textContent = t('model.note.' + state.model);
+  }
+
   function initControls() {
     // segmented model switch
     var seg = document.getElementById('model-seg');
@@ -742,65 +922,35 @@
         localStorage.setItem('sern-model', state.model);
         seg.querySelectorAll('button').forEach(function (b) { b.classList.remove('active'); });
         btn.classList.add('active');
+        updateModelNote();
         refreshAllViews();
       });
     });
+    updateModelNote();
 
-    // heatmap mode switch
-    var heatSeg = document.getElementById('heat-seg');
-    heatSeg.querySelectorAll('button').forEach(function (btn) {
-      if (btn.dataset.heat === state.heatMode) btn.classList.add('active');
-      btn.addEventListener('click', function () {
-        state.heatMode = btn.dataset.heat;
-        localStorage.setItem('sern-heat-mode', state.heatMode);
-        heatSeg.querySelectorAll('button').forEach(function (b) { b.classList.remove('active'); });
-        btn.classList.add('active');
-        renderHeatmap();
-      });
-    });
-
-    // watchlist filter
-    var filter = document.getElementById('watch-filter');
-    filter.checked = state.watchOnly;
-    filter.addEventListener('change', function () {
-      state.watchOnly = filter.checked;
-      renderBoards();
-      renderHeatmap();
-    });
-
-    // retry failed
-    document.getElementById('retry-btn').addEventListener('click', function () {
-      var targets = state.entries.filter(function (e) {
-        return e.status === 'failed' || (e.data && e.data.insufficient);
-      });
-      Promise.all(targets.map(retryEntry)).then(refreshAllViews);
-    });
-
-    // force refresh: wipe all data caches (prefs kept), re-warm, reload
-    document.getElementById('refresh-btn').addEventListener('click', function () {
+    // force refresh: wipe all data caches (prefs kept), re-warm, reload.
+    // Click feedback: a quick full turn on the icon plus a dim of the data
+    // sections, both cleared when the reload settles (see startLoading).
+    var refreshBtn = document.getElementById('refresh-btn');
+    refreshBtn.setAttribute('aria-label', t('freshness.refresh'));
+    refreshBtn.setAttribute('title', t('freshness.refresh'));
+    refreshBtn.addEventListener('click', function () {
+      refreshBtn.classList.add('kick');
+      setTimeout(function () { refreshBtn.classList.remove('kick'); }, 600);
+      setRefreshing(true);
       yahoo.clearCache().then(function () { startLoading(); });
     });
 
-    // language toggle (button temporarily hidden in markup; guard keeps
-    // this working unchanged if it is re-enabled)
-    var langBtn = document.getElementById('lang-toggle');
-    if (langBtn) {
-      langBtn.textContent = t('lang.label');
-      langBtn.addEventListener('click', function () {
-        i18n.toggle();
-      });
-    }
-
-    // methodology collapse
-    var methodHead = document.getElementById('method-head');
-    methodHead.addEventListener('click', function () {
-      document.getElementById('method-body').classList.toggle('open');
-      methodHead.classList.toggle('collapsed');
-    });
+    // language toggle wiring lives in js/nav.js (shared by both pages) —
+    // adding a second click handler here would double-fire the toggle
 
     // drawer close
     document.getElementById('drawer-close').addEventListener('click', closeDrawer);
     document.getElementById('drawer-overlay').addEventListener('click', closeDrawer);
+    // drawer favorite: forces the stock into the heatmap and the ranking
+    document.getElementById('drawer-fav').addEventListener('click', function () {
+      if (state.drawerEntry) toggleFavoriteEntry(state.drawerEntry);
+    });
     document.addEventListener('keydown', function (e) {
       if (e.key === 'Escape') closeDrawer();
     });
@@ -828,13 +978,18 @@
     i18n.onChange(function () {
       i18n.applyStatic();
       document.title = 'SERN FinTech - ' + t('page.title');
-      var langBtn = document.getElementById('lang-toggle');
-      if (langBtn) langBtn.textContent = t('lang.label');
-      // ticker names
-      var nodes = document.getElementById('index-ticker').querySelectorAll('.ticker-name');
-      INDEX_SYMBOLS.forEach(function (s, i) {
-        if (nodes[i]) nodes[i].textContent = INDEX_NAMES[s][i18n.getLang() === 'zh' ? 'zh' : 'en'];
+      var refreshBtn = document.getElementById('refresh-btn');
+      refreshBtn.setAttribute('aria-label', t('freshness.refresh'));
+      refreshBtn.setAttribute('title', t('freshness.refresh'));
+      // ticker names (original cards + marquee clones, keyed by data-symbol)
+      var items = document.getElementById('index-ticker').querySelectorAll('.ticker-item');
+      var langKey = i18n.getLang() === 'zh' ? 'zh' : 'en';
+      items.forEach(function (item) {
+        var symbol = item.dataset.symbol;
+        var name = item.querySelector('.ticker-name');
+        if (name && INDEX_NAMES[symbol]) name.textContent = INDEX_NAMES[symbol][langKey];
       });
+      updateModelNote();
       refreshAllViews();
     });
   }
