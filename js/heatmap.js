@@ -179,22 +179,169 @@
     });
   }
 
-  // opts: {entries, t, langName, isFavorite, onSelect}
+  // ---- Company logos ----
+  // Logos live on a remote, strongly-cached image service. Defer the queue
+  // until the wall approaches the viewport, cap concurrency, and only place
+  // marks on tiles large enough to keep symbol/value legible. Small tiles
+  // never issue an image request, so first paint and quote streaming stay
+  // independent of logo availability.
+  // Priority inside a tile is icon > symbol > change. A tile has to be big
+  // enough for a recognisable mark, but does not need room for all three.
+  // Tiles below ICON_MIN_* fall through to the existing text tiers; this is
+  // the only place logos are queued, so the request count remains bounded.
+  var LOGO_MIN_W = 22;
+  var LOGO_MIN_H = 18;
+  var LOGO_TEXT_MIN_W = 36;
+  var LOGO_TEXT_MIN_H = 30;
+  var LOGO_VALUE_MIN_W = 54;
+  var LOGO_VALUE_MIN_H = 42;
+  var LOGO_MAX_ACTIVE = 3;
+  var LOGO_ORIGIN = 'https://img.loadlogo.com/ticker/';
+  var logoPending = [];
+  var logoActive = 0;
+  var logoStates = {};
+  var logoLoadedUrl = {};
+  var logoTargets = {};
+  var logoObserver = null;
+  var logoObservedContainer = null;
+  var logoFallbackTimer = null;
+  var logoLoadStarted = false;
+
+  function logoUrl(symbol) {
+    return LOGO_ORIGIN + encodeURIComponent(symbol) +
+      '?size=64&format=png&fallback=monogram';
+  }
+
+  function makeLogoImage(symbol) {
+    var url = logoLoadedUrl[symbol];
+    if (!url) return null;
+    var img = document.createElement('img');
+    img.className = 'heat-logo';
+    img.src = url;
+    img.alt = '';
+    img.setAttribute('aria-hidden', 'true');
+    img.setAttribute('decoding', 'async');
+    img.setAttribute('referrerpolicy', 'no-referrer');
+    img.draggable = false;
+    if ('fetchPriority' in img) img.fetchPriority = 'low';
+    img.addEventListener('error', function () { img.remove(); });
+    return img;
+  }
+
+  function attachLogo(symbol) {
+    var tile = logoTargets[symbol];
+    if (!tile || !tile.isConnected || tile.querySelector('.heat-logo')) return;
+    var img = makeLogoImage(symbol);
+    if (img) tile.insertBefore(img, tile.firstChild);
+  }
+
+  function pumpLogos() {
+    if (!logoLoadStarted) return;
+    while (logoActive < LOGO_MAX_ACTIVE && logoPending.length) {
+      var symbol = logoPending.shift();
+      if (logoStates[symbol] !== 'queued') continue;
+      logoStates[symbol] = 'loading';
+      logoActive++;
+      loadLogo(symbol);
+    }
+  }
+
+  function loadLogo(symbol) {
+    var probe = new Image();
+    probe.decoding = 'async';
+    probe.referrerPolicy = 'no-referrer';
+    if ('fetchPriority' in probe) probe.fetchPriority = 'low';
+    probe.onload = function () {
+      logoStates[symbol] = 'ok';
+      logoLoadedUrl[symbol] = logoUrl(symbol);
+      logoActive--;
+      attachLogo(symbol);
+      pumpLogos();
+    };
+    probe.onerror = function () {
+      logoStates[symbol] = 'fail';
+      logoActive--;
+      pumpLogos();
+    };
+    probe.src = logoUrl(symbol);
+  }
+
+  function queueLogo(symbol, tile) {
+    logoTargets[symbol] = tile;
+    if (logoStates[symbol] === 'ok') {
+      attachLogo(symbol);
+      return;
+    }
+    if (logoStates[symbol] === 'fail' || logoStates[symbol] === 'loading') return;
+    if (logoStates[symbol] !== 'queued') {
+      logoStates[symbol] = 'queued';
+      logoPending.push(symbol);
+    }
+    pumpLogos();
+  }
+
+  function startLogoLoading() {
+    if (logoLoadStarted) return;
+    logoLoadStarted = true;
+    if (logoFallbackTimer) {
+      clearTimeout(logoFallbackTimer);
+      logoFallbackTimer = null;
+    }
+    if (logoObserver) {
+      logoObserver.disconnect();
+      logoObserver = null;
+    }
+    pumpLogos();
+  }
+
+  function observeLogoLoading(container) {
+    if (logoLoadStarted || logoObservedContainer === container) return;
+    if (logoObserver) logoObserver.disconnect();
+    logoObservedContainer = container;
+    if (typeof window.IntersectionObserver === 'function') {
+      logoObserver = new window.IntersectionObserver(function (entries) {
+        for (var i = 0; i < entries.length; i++) {
+          if (entries[i].isIntersecting) {
+            startLogoLoading();
+            return;
+          }
+        }
+      }, { rootMargin: '240px 0px' });
+      logoObserver.observe(container);
+    }
+    // Some embedded / prerender engines throttle IntersectionObserver but do
+    // fire timers. Deferring the fallback keeps logos from ever being needed
+    // on the critical path, while still making the feature resilient.
+    logoFallbackTimer = setTimeout(startLogoLoading, 2500);
+  }
+
+  // opts: {entries, t, langName, isFavorite, loading, onSelect}
   function render(container, opts) {
     lastContainer = container;
     lastOpts = opts;
     bindResize();
 
+    // Keyboard focus must survive this rebuild: quotes land every ~200ms
+    // while the pool warms, and clearing innerHTML would dump focus to
+    // <body>. Only a focused tile triggers it — focus inside the drawer
+    // (a different activeElement) is left alone.
+    var active = document.activeElement;
+    var focusSymbol = (active && active.classList &&
+      active.classList.contains('heat-tile') && active.dataset)
+      ? active.dataset.symbol : null;
+
     container.innerHTML = '';
     var tree = el('div', 'heat-tree');
     container.appendChild(tree);
+    logoTargets = {};
 
-    // Group loaded entries by sector; pending quotes have no cap yet, so they
-    // simply appear on a later render (the wall itself never changes shape).
+    // Group loaded entries by sector; entries without data (still pending on
+    // the very first load) appear on a later render. Entries holding stale
+    // data mid-refresh keep their tile — the wall never blanks.
     var order = [];
     var bySector = {};
     opts.entries.forEach(function (e) {
-      if (e.status !== 'done' || !e.data) return;
+      if (!e.data) return;
       var s = e.meta.sector;
       if (!bySector[s]) {
         bySector[s] = [];
@@ -204,7 +351,8 @@
     });
 
     if (!order.length) {
-      tree.appendChild(el('div', 'board-placeholder', opts.t('freshness.loading')));
+      tree.appendChild(el('div', 'board-placeholder',
+        opts.loading ? opts.t('freshness.loading') : opts.t('board.empty')));
       return;
     }
 
@@ -267,29 +415,88 @@
         var e = st.entry;
         var v = tileValue(e);
         var cls = 'heat-tile ' + v.cls;
-        // text tiers by rendered px: full (symbol+value), sm (symbol at a
-        // smaller font), xs (no text — color + hover tooltip only). The xs
-        // floor is deliberately low so small-cap names stay readable.
-        if (tr.w < 22 || tr.h < 12) cls += ' heat-tile-xs';
-        else if (tr.w < 58 || tr.h < 30) cls += ' heat-tile-sm';
+        var hasLogo = tr.w >= LOGO_MIN_W && tr.h >= LOGO_MIN_H;
+        var showText = !hasLogo || (tr.w >= LOGO_TEXT_MIN_W && tr.h >= LOGO_TEXT_MIN_H);
+        var showValue = !hasLogo
+          ? (tr.w >= 54 && tr.h >= 30)
+          : (tr.w >= LOGO_VALUE_MIN_W && tr.h >= LOGO_VALUE_MIN_H);
+        // Without a logo, keep the original text tiers: full (symbol+value),
+        // sm (symbol), xs (colour + tooltip). With a logo, the layout follows
+        // the explicit icon > symbol > change priority instead.
+        if (!hasLogo && (tr.w < 18 || tr.h < 12)) cls += ' heat-tile-xs';
+        else if (!hasLogo && (tr.w < 54 || tr.h < 30)) cls += ' heat-tile-sm';
+        if (hasLogo && !showText) cls += ' heat-tile-logo-only';
+        if (hasLogo && showText) cls += ' heat-tile-has-logo';
+        if (!showValue) cls += ' heat-tile-no-value';
         // ★ badge on favorited stocks (forced into the wall); skipped on
         // no-text tiles where an 8px glyph would be the only content
         if (opts.isFavorite && opts.isFavorite(e.meta.symbol) && cls.indexOf('heat-tile-xs') === -1) {
           cls += ' heat-tile-fav';
         }
         var tile = el('div', cls);
+        tile.setAttribute('role', 'button');
+        tile.tabIndex = -1;
         tile.style.left = tr.x + 'px';
         tile.style.top = tr.y + 'px';
         tile.style.width = tr.w + 'px';
         tile.style.height = tr.h + 'px';
         tile.dataset.symbol = e.meta.symbol;
         tile.setAttribute('title', opts.langName(e.meta.name) + ' ' + e.meta.symbol + ' · ' + v.text);
-        tile.appendChild(el('div', 'heat-symbol', e.meta.symbol));
-        tile.appendChild(el('div', 'heat-value', v.text));
+        tile.setAttribute('aria-label', opts.langName(e.meta.name) + ' ' + e.meta.symbol + ' · ' + v.text);
+        if (showText) tile.appendChild(el('div', 'heat-symbol', e.meta.symbol));
+        tile.appendChild(el('div', 'heat-value', showValue ? v.text : ''));
+        if (hasLogo) {
+          tile.className = cls;
+          var logoSize = Math.max(14, Math.min(28, Math.floor(Math.min(tr.w, tr.h) * 0.42)));
+          if (!showText) logoSize = Math.max(14, Math.min(28, Math.floor(Math.min(tr.w, tr.h) * 0.65)));
+          tile.style.setProperty('--heat-logo-size', logoSize + 'px');
+          queueLogo(e.meta.symbol, tile);
+        }
         tile.addEventListener('click', function () { opts.onSelect(e.meta.symbol); });
         node.appendChild(tile);
       });
       tree.appendChild(node);
+    });
+
+    observeLogoLoading(container);
+    bindTileKeys(tree, focusSymbol);
+  }
+
+  // Roving tabindex: 150 tiles must not be 150 tab stops. The tree takes one
+  // stop, arrow keys walk the tiles in DOM order (sector, then size desc).
+  // focusSymbol re-hands that stop to the tile that held it last render.
+  function bindTileKeys(tree, focusSymbol) {
+    var tiles = tree.querySelectorAll('.heat-tile');
+    if (!tiles.length) return;
+    var start = 0;
+    if (focusSymbol) {
+      for (var i = 0; i < tiles.length; i++) {
+        if (tiles[i].dataset.symbol === focusSymbol) { start = i; break; }
+      }
+    }
+    tiles[start].tabIndex = 0;
+    if (focusSymbol) tiles[start].focus();
+    tree.addEventListener('keydown', function (ev) {
+      var list = tree.querySelectorAll('.heat-tile');
+      var idx = Array.prototype.indexOf.call(list, document.activeElement);
+      if (idx === -1) return;
+      if (ev.key === 'Enter' || ev.key === ' ') {
+        ev.preventDefault();
+        list[idx].click();
+        return;
+      }
+      var next = null;
+      if (ev.key === 'ArrowRight' || ev.key === 'ArrowDown') next = idx + 1;
+      else if (ev.key === 'ArrowLeft' || ev.key === 'ArrowUp') next = idx - 1;
+      else if (ev.key === 'Home') next = 0;
+      else if (ev.key === 'End') next = list.length - 1;
+      else return;
+      ev.preventDefault();
+      if (next < 0) next = 0;
+      if (next >= list.length) next = list.length - 1;
+      list[idx].tabIndex = -1;
+      list[next].tabIndex = 0;
+      list[next].focus();
     });
   }
 

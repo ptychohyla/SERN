@@ -18,10 +18,12 @@
   var SECTOR_COLORS = ['#3b82f6', '#06b6d4', '#22c55e', '#eab308', '#f97316',
     '#ef4444', '#a855f7', '#ec4899', '#14b8a6', '#84cc16', '#f43f5e'];
   var MARKET_COLORS = { US: '#3b82f6', CN: '#ef4444', HK: '#f97316', JP: '#22c55e', KR: '#06b6d4', TW: '#eab308', EU: '#a855f7' };
+  var MARKET_ORDER = ['US', 'CN', 'HK', 'JP', 'KR', 'TW', 'EU'];
 
   // ==================== State ====================
   var state = {
     model: localStorage.getItem('sern-model') || 'multifactor',
+    market: localStorage.getItem('sern-market') || 'all',
     entries: [],
     loading: true,
     scores: null,
@@ -33,12 +35,24 @@
   // Starred stocks are forced into the heatmap and the ranking board, marked
   // with a ★. Storefront metadata is persisted so off-universe picks (from
   // search) survive reloads; they join a dedicated "favorites" sector bucket.
+  // Parsed once and held in memory: isFavorite() runs per heatmap tile and per
+  // board row on every render, so a fresh JSON.parse per call would cost
+  // hundreds of parses per refresh.
+  var favoritesCache = null;
   function getFavorites() {
-    try { return JSON.parse(localStorage.getItem('sern-favorites') || '[]'); }
-    catch (e) { return []; }
+    if (favoritesCache) return favoritesCache;
+    try {
+      favoritesCache = JSON.parse(localStorage.getItem('sern-favorites') || '[]');
+    } catch (e) {
+      favoritesCache = [];
+    }
+    if (!Array.isArray(favoritesCache)) favoritesCache = [];
+    return favoritesCache;
   }
   function setFavorites(list) {
-    localStorage.setItem('sern-favorites', JSON.stringify(list));
+    favoritesCache = list;
+    try { localStorage.setItem('sern-favorites', JSON.stringify(list)); }
+    catch (e) { /* quota / private mode: keep the in-memory copy */ }
   }
   function isFavorite(symbol) {
     var favs = getFavorites();
@@ -333,7 +347,17 @@
 
     row.appendChild(scoreCell(entry.scores.composite));
 
+    row.setAttribute('role', 'button');
+    row.tabIndex = 0;
+    row.setAttribute('aria-label',
+      langName(entry.meta.name) + ' ' + entry.meta.symbol);
     row.addEventListener('click', function () { openDrawer(entry.meta.symbol); });
+    row.addEventListener('keydown', function (e) {
+      if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
+        openDrawer(entry.meta.symbol);
+      }
+    });
     return row;
   }
 
@@ -355,8 +379,19 @@
   // One ranking, ordered by the composite score of the currently selected
   // model — switching Multi-Factor / Deep Value / PEG Growth re-weights and
   // re-orders this board (and the donuts it feeds).
+  function inMarket(entry) {
+    return state.market === 'all' || entry.meta.market === state.market;
+  }
+
+  // Market filter: scoring always runs on the whole universe (percentile ranks
+  // stay market-wide and stable), then the heatmap, the board and the donuts
+  // all read the same filtered slice so the page never disagrees with itself.
+  function visibleEntries() {
+    return state.market === 'all' ? state.entries : state.entries.filter(inMarket);
+  }
+
   function visibleRanked() {
-    return state.scores.slice().sort(function (a, b) {
+    return state.scores.filter(inMarket).sort(function (a, b) {
       return b.scores.composite - a.scores.composite;
     });
   }
@@ -364,27 +399,43 @@
   function renderBoards() {
     var ranked = visibleRanked();
 
-    var top20 = document.getElementById('top20-body');
-    top20.innerHTML = '';
-    if (state.scores.length === 0) {
-      top20.appendChild(el('div', 'board-placeholder', t('freshness.loading')));
+    // same focus-preservation contract as the heatmap: the board is rebuilt
+    // on every throttled render while quotes land, and a focused row must
+    // not drop the keyboard user back to <body>
+    var active = document.activeElement;
+    var focusSymbol = (active && active.classList &&
+      active.classList.contains('rank-row') && active.dataset)
+      ? active.dataset.symbol : null;
+
+    var board = document.getElementById('board-body');
+    board.innerHTML = '';
+    if (ranked.length === 0) {
+      // "loading" only while the first load is actually in flight — a pool
+      // where nothing has enough data must not claim to be still loading
+      board.appendChild(el('div', 'board-placeholder',
+        state.loading ? t('freshness.loading') : t('board.empty')));
     } else {
-      top20.appendChild(headerRow());
+      board.appendChild(headerRow());
       // starred stocks are pinned above the board with a ★, keeping their
-      // true rank number; the regular Top 20 follows under a divider
+      // true rank number; the full ranking follows under a divider
       var pinned = ranked.filter(function (e) { return isFavorite(e.meta.symbol); });
       if (pinned.length) {
         pinned.forEach(function (entry) {
-          top20.appendChild(buildRow(entry, ranked.indexOf(entry) + 1));
+          board.appendChild(buildRow(entry, ranked.indexOf(entry) + 1));
         });
-        top20.appendChild(el('div', 'rank-divider', t('top20.title')));
+        board.appendChild(el('div', 'rank-divider', t('board.title')));
       }
-      ranked.slice(0, 20).forEach(function (entry, i) {
-        top20.appendChild(buildRow(entry, i + 1));
+      // no cap: every ranked stock in the current market is listed
+      ranked.forEach(function (entry, i) {
+        board.appendChild(buildRow(entry, i + 1));
       });
+      if (focusSymbol) {
+        var row = board.querySelector('.rank-row[data-symbol="' + focusSymbol + '"]');
+        if (row) row.focus();
+      }
     }
 
-    renderDistribution(ranked.slice(0, 20));
+    renderDistribution(ranked);
   }
 
   // ==================== Donut charts ====================
@@ -471,14 +522,19 @@
   function renderInsufficient() {
     var box = document.getElementById('insufficient-list');
     box.innerHTML = '';
-    var items = state.entries.filter(function (e) {
-      return e.status === 'done' && e.data && e.data.insufficient;
+    var scoped = visibleEntries();
+    var items = scoped.filter(function (e) {
+      return e.data && e.data.insufficient;
     });
-    var failed = state.entries.filter(function (e) { return e.status === 'failed'; });
+    var failed = scoped.filter(function (e) {
+      return e.status === 'failed' && !e.data;
+    });
     // spec §4.3: fewer than two usable valuation metrics under the current
-    // model -> excluded from ranking, listed here instead of vanishing
-    var excluded = state.entries.filter(function (e) {
-      return e.status === 'done' && e.data && !e.data.insufficient && !e.scores;
+    // model -> excluded from ranking, listed here instead of vanishing.
+    // Filters key off entry.data rather than status so a stock that still has
+    // (stale) data mid-refresh stays listed/ranked instead of flickering out.
+    var excluded = scoped.filter(function (e) {
+      return e.data && !e.data.insufficient && !e.scores;
     });
     var all = items.concat(failed, excluded);
     var section = document.getElementById('insufficient-section');
@@ -690,13 +746,18 @@
     refreshAllViews();
   }
 
+  var drawerReturnFocus = null;
+
   function renderDrawer(entry) {
     var symbol = entry.meta.symbol;
     state.drawerSymbol = symbol;
     state.drawerEntry = entry;
     var drawer = document.getElementById('drawer');
+    var wasOpen = drawer.classList.contains('open');
     document.getElementById('drawer-overlay').classList.add('active');
     drawer.classList.add('open');
+    if (!wasOpen) drawerReturnFocus = document.activeElement;
+    document.getElementById('drawer-close').focus();
 
     document.getElementById('drawer-title').textContent = langName(entry.meta.name);
     renderDrawerSub(entry);
@@ -786,10 +847,15 @@
   }
 
   function closeDrawer() {
+    var wasOpen = !!state.drawerSymbol;
     state.drawerSymbol = null;
     state.drawerEntry = null;
     document.getElementById('drawer').classList.remove('open');
     document.getElementById('drawer-overlay').classList.remove('active');
+    if (wasOpen && drawerReturnFocus && document.contains(drawerReturnFocus)) {
+      drawerReturnFocus.focus();
+    }
+    drawerReturnFocus = null;
   }
 
   // ==================== Data loading ====================
@@ -836,22 +902,31 @@
   }
 
   var renderQueued = false;
+  var lastRenderAt = 0;
+  var RENDER_INTERVAL_MS = 200;
+  // Entries settle one by one; without a floor, every animation frame would
+  // re-score 150 stocks and rebuild the whole heatmap DOM. The pending call
+  // always renders the latest state (entries are mutated in place), so
+  // throttling only batches work — it never drops an update.
   function scheduleRender() {
     if (renderQueued) return;
     renderQueued = true;
-    requestAnimationFrame(function () {
+    var wait = Math.max(0, RENDER_INTERVAL_MS - (Date.now() - lastRenderAt));
+    setTimeout(function () {
       renderQueued = false;
+      lastRenderAt = Date.now();
       refreshAllViews();
-    });
+    }, wait);
   }
 
   function renderHeatmap() {
     if (!window.SERN.heatmap) return;
     window.SERN.heatmap.render(document.getElementById('heatmap-body'), {
-      entries: state.entries,
+      entries: visibleEntries(),
       t: t,
       langName: langName,
       isFavorite: isFavorite,
+      loading: state.loading,
       onSelect: openDrawer
     });
   }
@@ -865,17 +940,26 @@
   }
 
   function startLoading() {
+    // A manual refresh must not blank the page: entries that already carry
+    // data keep it (and stay rendered) while their fresh quote loads, instead
+    // of collapsing the heatmap and the board back to the loading placeholder.
+    var previous = {};
+    state.entries.forEach(function (e) {
+      if (e.data) previous[e.meta.symbol] = e.data;
+    });
+
     state.entries = window.SERN.universe.map(function (meta) {
-      return { meta: meta, status: 'pending', data: null, scores: null };
+      return { meta: meta, status: 'pending', data: previous[meta.symbol] || null, scores: null };
     });
     // starred off-universe picks ride along: they are forced into the heatmap
     // and the ranking board (marked ★) alongside the regular universe
     getFavorites().forEach(function (f) {
       if (universeMeta(f.symbol)) return; // pool stock: already present
+      var meta = favoriteMeta(f.symbol);
       state.entries.push({
-        meta: favoriteMeta(f.symbol),
+        meta: meta,
         status: 'pending',
-        data: null,
+        data: previous[f.symbol] || null,
         scores: null,
         external: true
       });
@@ -887,8 +971,8 @@
       return function () { return loadEntry(entry); };
     });
 
-    // paint the empty shell (heatmap placeholder square, empty boards) up
-    // front — the first batch callback can be many seconds out on a cold cache
+    // paint immediately: on a first load that is the loading placeholder, on
+    // a refresh it is the previous data — never a blank page
     scheduleRender();
 
     runQueue(tasks, 5, function () {
@@ -912,7 +996,43 @@
     if (note) note.textContent = t('model.note.' + state.model);
   }
 
+  // Market filter chips, built from the universe's market codes so the row
+  // can never drift from the data. 'all' leads; the choice is persisted and
+  // shared by every view (heatmap, board, donuts, data-insufficient list).
+  function renderMarketFilter() {
+    var seg = document.getElementById('market-filter');
+    if (!seg) return;
+    seg.innerHTML = '';
+    seg.setAttribute('aria-label', t('filter.label'));
+    ['all'].concat(MARKET_ORDER).forEach(function (key) {
+      var active = state.market === key;
+      var btn = el('button', 'filter-btn' + (active ? ' active' : ''),
+        key === 'all' ? t('filter.all') : t('market.' + key));
+      btn.type = 'button';
+      btn.dataset.market = key;
+      btn.setAttribute('aria-pressed', active ? 'true' : 'false');
+      seg.appendChild(btn);
+    });
+  }
+
   function initControls() {
+    // market filter: a stale/unknown persisted value falls back to 'all'
+    if (state.market !== 'all' && MARKET_ORDER.indexOf(state.market) === -1) {
+      state.market = 'all';
+    }
+    renderMarketFilter();
+    var filterSeg = document.getElementById('market-filter');
+    filterSeg.addEventListener('click', function (ev) {
+      var btn = ev.target.closest ? ev.target.closest('.filter-btn') : null;
+      if (!btn || !filterSeg.contains(btn)) return;
+      var next = btn.dataset.market;
+      if (next === state.market) return;
+      state.market = next;
+      localStorage.setItem('sern-market', next);
+      renderMarketFilter();
+      refreshAllViews();
+    });
+
     // segmented model switch
     var seg = document.getElementById('model-seg');
     seg.querySelectorAll('button').forEach(function (btn) {
@@ -938,7 +1058,11 @@
       refreshBtn.classList.add('kick');
       setTimeout(function () { refreshBtn.classList.remove('kick'); }, 600);
       setRefreshing(true);
-      yahoo.clearCache().then(function () { startLoading(); });
+      // clearCache() wipes the caches synchronously and only its re-warm is
+      // async; each getQuote already awaits that warm, so startLoading does
+      // not have to — holding the UI for it would stall the page for seconds
+      yahoo.clearCache();
+      startLoading();
     });
 
     // language toggle wiring lives in js/nav.js (shared by both pages) —
@@ -952,11 +1076,36 @@
       if (state.drawerEntry) toggleFavoriteEntry(state.drawerEntry);
     });
     document.addEventListener('keydown', function (e) {
-      if (e.key === 'Escape') closeDrawer();
+      if (e.key === 'Escape') { closeDrawer(); return; }
+      if (e.key !== 'Tab') return;
+      // aria-modal dialog: Tab must not walk into the page behind it
+      var drawer = document.getElementById('drawer');
+      if (!drawer.classList.contains('open')) return;
+      var focusables = drawer.querySelectorAll(
+        'a[href], button:not([disabled]), input, select, textarea, [tabindex]:not([tabindex="-1"])');
+      if (!focusables.length) return;
+      var first = focusables[0];
+      var last = focusables[focusables.length - 1];
+      if (!drawer.contains(document.activeElement)) {
+        e.preventDefault();
+        first.focus();
+      } else if (e.shiftKey && document.activeElement === first) {
+        e.preventDefault();
+        last.focus();
+      } else if (!e.shiftKey && document.activeElement === last) {
+        e.preventDefault();
+        first.focus();
+      }
     });
 
+    // debounced like the heatmap's: an unthrottled resize handler redraws two
+    // canvases on every event of a drag-resize
+    var distResizeTimer = null;
     window.addEventListener('resize', function () {
-      if (state.scores) renderDistribution(visibleRanked().slice(0, 20));
+      clearTimeout(distResizeTimer);
+      distResizeTimer = setTimeout(function () {
+        if (state.scores) renderDistribution(visibleRanked());
+      }, 150);
     });
   }
 
@@ -990,6 +1139,7 @@
         if (name && INDEX_NAMES[symbol]) name.textContent = INDEX_NAMES[symbol][langKey];
       });
       updateModelNote();
+      renderMarketFilter();
       refreshAllViews();
     });
   }

@@ -4,23 +4,36 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title data-i18n="home.title">SERN FinTech - Quantitative Intelligence</title>
+  <meta name="description" content="SERN FinTech — LLM-powered quantitative infrastructure for strategy tracking, backtesting and algorithmic research.">
+  <meta property="og:type" content="website">
+  <meta property="og:title" content="SERN FinTech - Quantitative Intelligence">
+  <meta property="og:description" content="LLM-powered quantitative infrastructure for strategy tracking, backtesting, and algorithmic research.">
+  <meta property="og:image" content="apple-touch-icon.png">
+  <meta name="twitter:card" content="summary_large_image">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="css/style.css?v=20261007q">
-  <link rel="icon" type="image/svg+xml" href="favicon.svg?v=20261007q">
-  <link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png?v=20261007q">
-  <link rel="apple-touch-icon" href="apple-touch-icon.png?v=20261007q">
+  <!-- loaded non-blocking: a slow/blocked fonts.googleapis.com must not stall
+       first paint (the stylesheet request itself is render-blocking) -->
+  <link rel="preload" as="style" href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
+  <noscript>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  </noscript>
+  <link rel="stylesheet" href="css/style.css?v=20261012b">
+  <link rel="icon" type="image/svg+xml" href="favicon.svg?v=20261012b">
+  <link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png?v=20261012b">
+  <link rel="apple-touch-icon" href="apple-touch-icon.png?v=20261012b">
 </head>
 <body>
-  <canvas id="particle-canvas" class="particle-canvas"></canvas>
-  <div class="bg-grid"></div>
-  <div class="bg-glow"></div>
-  <canvas id="cta-footer-canvas" class="bg-wave-canvas"></canvas>
+  <a class="skip-link" href="#content" data-i18n="nav.skip">Skip to content</a>
+  <canvas id="particle-canvas" class="particle-canvas" aria-hidden="true"></canvas>
+  <div class="bg-grid" aria-hidden="true"></div>
+  <div class="bg-glow" aria-hidden="true"></div>
+  <canvas id="cta-footer-canvas" class="bg-wave-canvas" aria-hidden="true"></canvas>
 
   <nav class="navbar">
     <div class="container nav-container">
-      <a href="#" class="logo">
+      <a href="#content" class="logo">
         <span class="logo-icon">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
             <polyline points="4,17 9,10 13,13.5 20,5"></polyline>
@@ -57,8 +70,8 @@
     </div>
   </nav>
 
-  <section class="hero">
-    <canvas id="hero-bg-canvas" class="hero-bg-canvas"></canvas>
+  <section class="hero" id="content">
+    <canvas id="hero-bg-canvas" class="hero-bg-canvas" aria-hidden="true"></canvas>
     <div class="container hero-container">
       <div class="hero-content">
         <h1 class="hero-title">
@@ -71,13 +84,13 @@
           <span data-i18n="home.hero.sub-3">and algorithmic research</span>
         </p>
         <div class="hero-buttons">
-          <a href="#" class="btn btn-primary" data-i18n="home.hero.explore">Explore Platform</a>
-          <a href="#" class="btn btn-outline" data-i18n="home.hero.strategies">View Strategies</a>
+          <a href="#products" class="btn btn-primary" data-i18n="home.hero.explore">Explore Platform</a>
+          <a href="#research" class="btn btn-outline" data-i18n="home.hero.strategies">View Strategies</a>
         </div>
       </div>
       <div class="hero-visual">
-        <canvas id="globe-canvas" width="500" height="500"></canvas>
-        <div class="globe-glow"></div>
+        <canvas id="globe-canvas" width="500" height="500" role="img" aria-label="Rotating global network"></canvas>
+        <div class="globe-glow" aria-hidden="true"></div>
       </div>
     </div>
   </section>
@@ -119,7 +132,7 @@
               <span class="metric-value negative">-6.8%</span>
             </div>
           </div>
-          <canvas id="chart1" class="card-chart" width="320" height="110"></canvas>
+          <canvas id="chart1" aria-hidden="true" class="card-chart" width="320" height="110"></canvas>
           <div class="card-x-labels">
             <span>102</span><span>045</span><span>107</span><span>540</span><span>583</span><span>810</span>
           </div>
@@ -134,7 +147,7 @@
             <li><span class="bullet"></span><span data-i18n="home.solutions.multifactor">Multi-Factor Engine</span></li>
             <li><span class="bullet"></span><span data-i18n="home.solutions.risk">Risk Analysis</span></li>
           </ul>
-          <canvas id="chart2" class="card-chart" width="320" height="110"></canvas>
+          <canvas id="chart2" aria-hidden="true" class="card-chart" width="320" height="110"></canvas>
           <div class="card-x-labels">
             <span>Q1</span><span>Q2</span><span>Q3</span><span>Q4</span>
           </div>
@@ -149,13 +162,13 @@
             <li><span class="bullet"></span><span data-i18n="home.solutions.regime">Market Regime Detection</span></li>
             <li><span class="bullet"></span><span data-i18n="home.solutions.altdata">Alt Data Intelligence</span></li>
           </ul>
-          <canvas id="chart3" class="card-chart candlestick-chart" width="320" height="110"></canvas>
+          <canvas id="chart3" aria-hidden="true" class="card-chart candlestick-chart" width="320" height="110"></canvas>
         </div>
       </div>
     </div>
   </section>
 
-  <section class="stats-bar stats-bar-dark">
+  <section class="stats-bar stats-bar-dark" id="technology">
     <div class="container stats-container">
       <div class="stat-item">
         <div class="stat-value">10B<span class="stat-plus">+</span></div>
@@ -190,7 +203,7 @@
           <h4 data-i18n="home.analysis.portfolio">Portfolio Analysis</h4>
           <span class="badge" data-i18n="home.analysis.netreturn">Net Return</span>
         </div>
-        <canvas id="portfolio-chart" width="500" height="220"></canvas>
+        <canvas id="portfolio-chart" aria-hidden="true" width="500" height="220"></canvas>
         <div class="chart-x-labels">
           <span>10:07</span><span>11:00</span><span>11:00</span><span>12:30</span>
           <span>12:30</span><span>13:00</span><span>13:00</span><span>15:00</span>
@@ -199,7 +212,7 @@
     </div>
   </section>
 
-  <section class="partners">
+  <section class="partners" id="about">
     <div class="container">
       <h2 class="section-title center" data-i18n="home.partners.title">Trusted By Industry Leaders</h2>
       <div class="partners-grid">
@@ -254,7 +267,7 @@
         <div class="container">
           <div class="footer-grid">
             <div class="footer-brand">
-              <a href="#" class="logo">
+              <a href="#content" class="logo">
                 <span class="logo-icon">
                   <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
                     <polyline points="4,17 9,10 13,13.5 20,5"></polyline>
@@ -268,25 +281,25 @@
             <div class="footer-links-col">
               <h4 data-i18n="nav.products">Products</h4>
               <ul>
-                <li><a href="#" data-i18n="home.footer.tracking">Strategy Tracking</a></li>
-                <li><a href="#" data-i18n="home.footer.backtesting">Backtesting</a></li>
-                <li><a href="#" data-i18n="home.footer.airesearch">AI Research</a></li>
+                <li><a href="#products" data-i18n="home.footer.tracking">Strategy Tracking</a></li>
+                <li><a href="#products" data-i18n="home.footer.backtesting">Backtesting</a></li>
+                <li><a href="#products" data-i18n="home.footer.airesearch">AI Research</a></li>
               </ul>
             </div>
             <div class="footer-links-col">
               <h4 data-i18n="home.footer.company">Company</h4>
               <ul>
-                <li><a href="#" data-i18n="nav.about">About</a></li>
-                <li><a href="#" data-i18n="nav.research">Research</a></li>
-                <li><a href="#" data-i18n="home.footer.careers">Careers</a></li>
+                <li><a href="#about" data-i18n="nav.about">About</a></li>
+                <li><a href="#research" data-i18n="nav.research">Research</a></li>
+                <li><a href="mailto:hinsyeow@outlook.com" data-i18n="home.footer.careers">Careers</a></li>
               </ul>
             </div>
             <div class="footer-links-col">
               <h4 data-i18n="home.footer.legal">Legal</h4>
               <ul>
-                <li><a href="#" data-i18n="home.footer.privacy">Privacy</a></li>
-                <li><a href="#" data-i18n="home.footer.terms">Terms</a></li>
-                <li><a href="#" data-i18n="home.footer.compliance">Compliance</a></li>
+                <li><a href="#contact" data-i18n="home.footer.privacy">Privacy</a></li>
+                <li><a href="#contact" data-i18n="home.footer.terms">Terms</a></li>
+                <li><a href="#contact" data-i18n="home.footer.compliance">Compliance</a></li>
               </ul>
             </div>
           </div>
@@ -298,8 +311,8 @@
     </footer>
   </div>
 
-  <script src="js/i18n.js?v=20261007q"></script>
-  <script src="js/nav.js?v=20261007q"></script>
-  <script src="js/script.js?v=20261007q"></script>
+  <script src="js/i18n.js?v=20261012b"></script>
+  <script src="js/nav.js?v=20261012b"></script>
+  <script src="js/script.js?v=20261012b"></script>
 </body>
 </html>

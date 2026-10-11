@@ -6,7 +6,7 @@
   --border-glow: rgba(56, 189, 248, 0.14);
   --text-primary: #f8fafc;
   --text-secondary: #94a3b8;
-  --text-muted: #64748b;
+  --text-muted: #6d7d94;
   --accent-blue: #3b82f6;
   --accent-cyan: #06b6d4;
   --accent-orange: #f97316;
@@ -99,7 +99,8 @@ body {
   font-size: 0.88rem;
   font-weight: 500;
   text-decoration: none;
-  transition: all 0.3s ease;
+  transition: background 0.3s ease, box-shadow 0.3s ease, transform 0.3s ease,
+    border-color 0.3s ease, color 0.3s ease;
   cursor: pointer;
   border: 1px solid transparent;
   letter-spacing: 0.01em;
@@ -422,10 +423,10 @@ body {
   border-radius: 10px;
   padding: 22px;
   backdrop-filter: blur(10px);
-  transition: all 0.3s ease;
   position: relative;
   overflow: hidden;
   box-shadow: 0 0 25px rgba(56, 189, 248, 0.08), inset 0 0 30px rgba(56, 189, 248, 0.03);
+  transition: border-color 0.3s ease, box-shadow 0.3s ease, transform 0.3s ease;
 }
 
 .solution-card::before {
@@ -1304,11 +1305,57 @@ body {
   border-radius: 6px;
   cursor: pointer;
   white-space: nowrap;
-  transition: all 0.2s ease;
+  transition: color 0.2s ease, border-color 0.2s ease;
 }
 .panel-btn:hover {
   color: var(--text-primary);
   border-color: var(--border-glow);
+}
+
+/* ---------- Market filter ---------- */
+/* Sits above the heatmap and scopes every view below it (heatmap, board,
+   donuts, data-insufficient list). Wraps on narrow screens. */
+.market-filter-section {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px 14px;
+  margin-bottom: 24px;
+}
+.filter-label {
+  font-size: 0.76rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+.filter-seg {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 3px;
+  padding: 3px;
+  background: rgba(3, 7, 18, 0.7);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+}
+.filter-btn {
+  padding: 6px 14px;
+  font-family: inherit;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+  background: transparent;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: color 0.2s ease, background 0.2s ease, box-shadow 0.2s ease;
+}
+.filter-btn:hover { color: var(--text-primary); }
+.filter-btn.active {
+  color: #fff;
+  background: linear-gradient(135deg, var(--gradient-start), var(--gradient-end));
+  box-shadow: 0 2px 10px rgba(59, 130, 246, 0.28);
 }
 
 /* ---------- Board sections ---------- */
@@ -1590,11 +1637,18 @@ body {
   border-left: 1px solid var(--border-color);
   z-index: 201;
   transform: translateX(100%);
-  transition: transform 0.28s cubic-bezier(0.4, 0, 0.2, 1);
+  /* hidden when closed so its controls are not focusable off-screen; the
+     visibility change is delayed so the slide-out is still visible */
+  visibility: hidden;
+  transition: transform 0.28s cubic-bezier(0.4, 0, 0.2, 1), visibility 0s linear 0.28s;
   display: flex;
   flex-direction: column;
 }
-.drawer.open { transform: translateX(0); }
+.drawer.open {
+  transform: translateX(0);
+  visibility: visible;
+  transition: transform 0.28s cubic-bezier(0.4, 0, 0.2, 1), visibility 0s;
+}
 .drawer-header {
   display: flex;
   align-items: flex-start;
@@ -1784,9 +1838,9 @@ body {
   border-color: var(--border-glow);
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
 }
-.heat-tile-sm .heat-value { display: none; }
 /* small tiles keep their symbol at a reduced font instead of hiding text */
 .heat-tile-sm { padding: 0 1px; }
+.heat-tile-no-value .heat-value { display: none; }
 .heat-tile-sm .heat-symbol { font-size: 0.6rem; letter-spacing: 0; }
 /* ★ corner badge on favorited tiles */
 .heat-tile-fav::after {
@@ -1801,6 +1855,32 @@ body {
 }
 .heat-tile-xs .heat-symbol,
 .heat-tile-xs .heat-value { display: none; }
+.heat-tile-logo-only {
+  justify-content: center;
+  padding: 1px;
+}
+.heat-tile-logo-only .heat-logo {
+  margin-bottom: 0;
+}
+.heat-logo {
+  width: var(--heat-logo-size, 22px);
+  height: var(--heat-logo-size, 22px);
+  object-fit: contain;
+  flex: 0 0 auto;
+  padding: 1px;
+  margin-bottom: 1px;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.92);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.18);
+  pointer-events: none;
+  user-select: none;
+}
+.heat-tile-has-logo .heat-symbol { margin-top: 1px; line-height: 1.1; }
+.heat-tile-has-logo .heat-value { line-height: 1.1; }
+.heat-tile-has-logo:not(.heat-tile-sm):not(.heat-tile-xs) {
+  padding-top: 0;
+  padding-bottom: 0;
+}
 .heat-symbol,
 .heat-value {
   max-width: 100%;
@@ -1859,10 +1939,60 @@ body {
   .markets-main { padding: 104px 0 60px; }
   .markets-title { font-size: 1.7rem; }
   .markets-subtitle { font-size: 0.86rem; }
+  .market-filter-section { gap: 8px 10px; margin-bottom: 20px; }
+  .filter-seg { width: 100%; }
+  .filter-btn { flex: 1 0 auto; padding: 7px 10px; font-size: 0.74rem; }
   .model-seg { width: 100%; }
   .model-seg button { flex: 1; padding: 8px 6px; font-size: 0.76rem; }
   .board-title { font-size: 1.15rem; }
   .drawer { width: 100%; max-width: 100%; }
   .drawer-scores { grid-template-columns: 1fr; gap: 10px; }
   .lang-toggle { margin-left: 10px; }
+}
+
+/* ---------- Accessibility ---------- */
+/* Hidden until focused: first tab on the page jumps straight past the nav. */
+.skip-link {
+  position: fixed;
+  top: 8px;
+  left: 8px;
+  z-index: 300;
+  padding: 10px 16px;
+  border-radius: 6px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-glow);
+  color: var(--text-primary);
+  font-size: 0.85rem;
+  text-decoration: none;
+  transform: translateY(-250%);
+  transition: transform 0.18s ease;
+}
+.skip-link:focus { transform: translateY(0); }
+
+/* One visible ring everywhere, so keyboard focus is never lost — the
+   components below are mostly divs styled as controls. */
+a:focus-visible,
+button:focus-visible,
+input:focus-visible,
+[role='button']:focus-visible {
+  outline: 2px solid var(--accent-cyan);
+  outline-offset: 2px;
+}
+
+/* The treemap wall is a single tab stop (roving tabindex in heatmap.js). */
+.heat-tile:focus-visible {
+  outline: 2px solid var(--text-primary);
+  outline-offset: -2px;
+  z-index: 2;
+}
+.rank-row:focus-visible { outline: 2px solid var(--accent-cyan); outline-offset: -2px; }
+.search-item:focus-visible { outline-offset: -2px; }
+
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
 }

@@ -77,6 +77,8 @@
   if (!input || !panel || !clearBtn) return;
 
   var remoteCtrl = null;      // AbortController for the in-flight remote call
+  var remoteTimer = null;     // its abort timeout (cleared when the call is dropped)
+  var remoteSeq = 0;          // generation counter: responses from a dropped call are discarded
   var debounceTimer = null;
   var flatItems = [];         // flattened {symbol, name, market, external?} for keyboard nav
   var activeIndex = -1;
@@ -84,11 +86,22 @@
 
   function applyLang() {
     input.setAttribute('placeholder', t('search.placeholder'));
+    input.setAttribute('aria-label', t('search.placeholder'));
+  }
+
+  function abortRemote() {
+    if (debounceTimer) { clearTimeout(debounceTimer); debounceTimer = null; }
+    if (remoteTimer) { clearTimeout(remoteTimer); remoteTimer = null; }
+    if (remoteCtrl) { remoteCtrl.abort(); remoteCtrl = null; }
+    remoteSeq++;
   }
 
   function closePanel() {
+    // a pending suggestion fetch is worthless once the panel is gone
+    abortRemote();
     panel.classList.remove('open');
     input.setAttribute('aria-expanded', 'false');
+    input.removeAttribute('aria-activedescendant');
     flatItems = [];
     activeIndex = -1;
   }
@@ -100,7 +113,11 @@
       nodes[i].classList.toggle('active', i === index);
     }
     if (index >= 0 && nodes[index]) {
+      // combobox navigation is announced through the active descendant
+      input.setAttribute('aria-activedescendant', nodes[index].id);
       nodes[index].scrollIntoView({ block: 'nearest' });
+    } else {
+      input.removeAttribute('aria-activedescendant');
     }
   }
 
@@ -178,6 +195,9 @@
       }
       if (loading) appendNote(panel, 'search.loading', 'search-note search-loading');
     }
+    // stable ids so the combobox can point aria-activedescendant at an option
+    var optionNodes = panel.querySelectorAll('.search-item');
+    for (var i = 0; i < optionNodes.length; i++) optionNodes[i].id = 'search-opt-' + i;
     panel.classList.add('open');
     input.setAttribute('aria-expanded', 'true');
     activeIndex = -1;
@@ -187,7 +207,8 @@
     closePanel();
     input.value = '';
     clearBtn.classList.remove('visible');
-    input.blur();
+    // deliberately NOT blurred: the drawer takes focus now and hands it back
+    // to the search box when it closes (markets.js drawerReturnFocus)
     var markets = window.SERN.markets;
     if (!markets) return;
     if (item.external) markets.openExternalDrawer(item.symbol, item.name);
@@ -195,29 +216,29 @@
   }
 
   function fetchRemote(query) {
-    if (remoteCtrl) remoteCtrl.abort();
+    abortRemote();
     var reachable = !window.SERN.yahoo || !window.SERN.yahoo.stockapiReachable
       || window.SERN.yahoo.stockapiReachable();
     if (!reachable) return; // origin unreachable this session: local-only
+    var seq = remoteSeq;
     remoteCtrl = typeof AbortController !== 'undefined' ? new AbortController() : null;
-    var timer = remoteCtrl
-      ? setTimeout(function () { remoteCtrl.abort(); }, SEARCH_TIMEOUT)
-      : null;
     var ctrl = remoteCtrl;
+    var timer = ctrl ? setTimeout(function () { ctrl.abort(); }, SEARCH_TIMEOUT) : null;
+    remoteTimer = timer;
     fetch(STOCKAPI_ORIGIN + '/v1/search?q=' + encodeURIComponent(query),
       ctrl ? { signal: ctrl.signal } : undefined
     ).then(function (res) {
-      if (timer) clearTimeout(timer);
+      if (timer) { clearTimeout(timer); remoteTimer = null; }
       if (!res.ok) throw new Error('HTTP ' + res.status);
       return res.json();
     }).then(function (json) {
-      if (ctrl !== remoteCtrl) return; // a newer query superseded this one
+      if (seq !== remoteSeq) return; // superseded or panel closed
       var remote = (json && json.data) || [];
       lastGroups = mergeSuggestions(lastGroups.pool, remote);
       render(false);
     }, function () {
-      if (timer) clearTimeout(timer);
-      if (ctrl !== remoteCtrl) return; // superseded; not a real failure
+      if (timer) { clearTimeout(timer); remoteTimer = null; }
+      if (seq !== remoteSeq) return; // superseded; not a real failure
       render(false); // remote failed: quietly keep local-only results
     });
   }
@@ -225,8 +246,7 @@
   function onInput() {
     var query = input.value.trim();
     clearBtn.classList.toggle('visible', !!query);
-    if (debounceTimer) clearTimeout(debounceTimer);
-    if (remoteCtrl) { remoteCtrl.abort(); remoteCtrl = null; }
+    abortRemote();
     if (!query) { closePanel(); lastGroups = { pool: [], more: [] }; return; }
     lastGroups = mergeSuggestions(localMatches(query, universe), []);
     var wantRemote = query.length >= 2;

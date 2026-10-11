@@ -8,12 +8,12 @@
       'nav.home': 'Home',
       'nav.markets': 'Markets',
       'nav.menu': 'Menu',
+      'nav.skip': 'Skip to content',
       'nav.products': 'Products',
       'nav.research': 'Research',
       'nav.technology': 'Technology',
       'nav.about': 'About',
       'nav.contact': 'Contact',
-      'lang.label': '中文',
       'lang.switch': 'Switch to 中文',
 
       'page.title': 'Global Markets',
@@ -22,7 +22,6 @@
       'freshness.loading': 'Loading market data…',
       'freshness.refresh': 'Refresh all',
 
-      'model.label': 'Scoring model',
       'model.multifactor': 'Multi-Factor',
       'model.deepvalue': 'Deep Value',
       'model.peg': 'PEG Growth',
@@ -31,13 +30,15 @@
       'model.note.deepvalue': 'Graham style — low trailing P/E and P/B with high dividend yield dominate, plus a light financial-health filter against value traps.',
       'model.note.peg': 'Lynch style — PEG carries half the valuation weight, and growth is weighted highest in the composite score.',
 
-      'top20.title': 'Top 20 Strategy Picks',
-      'top20.subtitle': 'Ranked by the selected scoring model',
+      'board.title': 'Strategy Picks',
+      'board.subtitle': 'Every ranked stock, ordered by the selected scoring model',
+      'board.empty': 'No stock in the pool has enough data to rank yet.',
+
+      'filter.label': 'Market',
+      'filter.all': 'All',
 
       'col.rank': '#',
       'col.company': 'Company',
-      'col.market': 'Market',
-      'col.sector': 'Sector',
       'col.score': 'Score',
       'col.pe': 'P/E',
       'col.pb': 'P/B',
@@ -95,10 +96,6 @@
       'drawer.source': 'Data source',
 
       'source.yahoo': 'Yahoo Finance',
-      'source.tencent': 'Tencent Finance',
-      'source.eastmoney': 'Eastmoney',
-      'source.tradingview': 'TradingView',
-      'source.ths': 'THS',
       'source.stockapi': 'StockAPI (self-hosted)',
       'source.price': 'Price only (fallback)',
 
@@ -124,8 +121,6 @@
       'market.KR': 'Korea',
       'market.TW': 'Taiwan',
       'market.EU': 'Europe',
-
-      'index.name': 'Indices',
 
       'home.title': 'SERN FinTech - Quantitative Intelligence',
       'home.hero.title-1': 'Quantitative Intelligence',
@@ -178,12 +173,12 @@
       'nav.home': '首页',
       'nav.markets': '市场',
       'nav.menu': '菜单',
+      'nav.skip': '跳到主要内容',
       'nav.products': '产品',
       'nav.research': '研究',
       'nav.technology': '技术',
       'nav.about': '关于',
       'nav.contact': '联系',
-      'lang.label': 'EN',
       'lang.switch': 'Switch to English',
 
       'page.title': '全球市场',
@@ -192,7 +187,6 @@
       'freshness.loading': '正在加载市场数据…',
       'freshness.refresh': '全部刷新',
 
-      'model.label': '评分模型',
       'model.multifactor': '专业多因子',
       'model.deepvalue': '深度价值',
       'model.peg': 'PEG 成长',
@@ -200,13 +194,15 @@
       'model.note.deepvalue': '格雷厄姆式价值：低市盈率、低市净率与高股息率为主，辅以财务健康过滤规避价值陷阱。',
       'model.note.peg': '彼得·林奇法则：PEG 占估值权重一半，成长在综合分中占比最高。',
 
-      'top20.title': '策略精选 Top 20',
-      'top20.subtitle': '按当前所选评分策略的综合得分排名',
+      'board.title': '策略精选',
+      'board.subtitle': '按当前所选评分策略对全部股票综合得分排名',
+      'board.empty': '股票池内暂无具备足够数据的股票参与排名。',
+
+      'filter.label': '市场',
+      'filter.all': '全部',
 
       'col.rank': '#',
       'col.company': '公司',
-      'col.market': '市场',
-      'col.sector': '行业',
       'col.score': '策略得分',
       'col.pe': '市盈率',
       'col.pb': '市净率',
@@ -264,10 +260,6 @@
       'drawer.source': '数据来源',
 
       'source.yahoo': 'Yahoo Finance',
-      'source.tencent': '腾讯财经',
-      'source.eastmoney': '东方财富',
-      'source.tradingview': 'TradingView',
-      'source.ths': '同花顺',
       'source.stockapi': 'StockAPI（自建）',
       'source.price': '仅价格（备用源）',
 
@@ -293,8 +285,6 @@
       'market.KR': '韩国',
       'market.TW': '台湾',
       'market.EU': '欧洲',
-
-      'index.name': '指数',
 
       'home.title': 'SERN FinTech - 量化智能',
       'home.hero.title-1': '量化智能',

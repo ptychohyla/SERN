@@ -14,9 +14,13 @@
   // Quotes: a batch warm (chunks of 20, 3 in flight) fills the snapshot map
   // off the critical path; getQuote then merges the warmed price with a lazy
   // per-symbol fundamentals fetch, field-level (a field already set is never
-  // overwritten). A session availability flag plus per-endpoint cooldowns
-  // keep an unreachable origin from stalling the page: failures resolve to
-  // "insufficient"/"failed" entries the UI can retry, never to a hang.
+  // overwritten). Fundamentals get their own warm (8 in flight, started at
+  // the same moment as the quote warm, joined symbol-by-symbol when the entry
+  // walk gets there first) and their own cache key — /v1/fundamentals is one
+  // upstream request per symbol, so it dominates the cold load. A session
+  // availability flag plus per-endpoint cooldowns keep an unreachable origin
+  // from stalling the page: failures resolve to "insufficient"/"failed"
+  // entries the UI can retry, never to a hang.
 
   var QUOTE_SOURCES = ['stockapi', 'stockapiFundamentals'];
 
@@ -55,18 +59,18 @@
     try { localStorage.removeItem(key); } catch (e) {}
   }
 
-  var DATA_KEY_PREFIXES = ['sern-quote-', 'sern-chart-', 'sern-spark-', 'sern-candle-'];
+  var FUND_KEY_PREFIX = 'sern-fund-';
+  var PRICE_KEY_PREFIXES = ['sern-quote-', 'sern-chart-', 'sern-spark-', 'sern-candle-'];
+  var DATA_KEY_PREFIXES = PRICE_KEY_PREFIXES.concat([FUND_KEY_PREFIX]);
 
-  // Force refresh: wipe every data cache (but never user preferences),
-  // clear in-memory snapshots, then re-warm.
-  function clearCache() {
+  function removeByPrefixes(prefixes) {
     try {
       var toRemove = [];
       for (var i = 0; i < localStorage.length; i++) {
         var k = localStorage.key(i);
         if (!k) continue;
-        for (var j = 0; j < DATA_KEY_PREFIXES.length; j++) {
-          if (k.indexOf(DATA_KEY_PREFIXES[j]) === 0) {
+        for (var j = 0; j < prefixes.length; j++) {
+          if (k.indexOf(prefixes[j]) === 0) {
             toRemove.push(k);
             break;
           }
@@ -74,6 +78,14 @@
       }
       toRemove.forEach(function (k) { localStorage.removeItem(k); });
     } catch (e) {}
+  }
+
+  // Force refresh: drop stale prices and re-warm. Fundamentals are T-1 daily
+  // data that only rolls over at 06:00, so they survive a manual refresh —
+  // wiping them would re-issue ~150 upstream requests for numbers that cannot
+  // have changed. Pass 'all' to wipe them too (never user preferences).
+  function clearCache(mode) {
+    removeByPrefixes(mode === 'all' ? DATA_KEY_PREFIXES : PRICE_KEY_PREFIXES);
     stockapiSnapshots = {};
     stockapiState = 'unknown';
     resetSourceCooldowns();
@@ -371,12 +383,41 @@
     };
   }
 
+  // The /v1/fundamentals endpoint is per-symbol (one upstream quoteSummary per
+  // call), so 150 stocks is the dominant cold-load cost. Warming them up front
+  // in a wide pool — in parallel with the quote warm, not behind it — is what
+  // keeps the entry queue from serializing on one request at a time.
+  var FUND_CONCURRENCY = 8;
+  var fundInflight = {};
+
   function stockapiFundamentals(symbol) {
+    var hit = cacheEntry(FUND_KEY_PREFIX + symbol);
+    if (hit) return Promise.resolve(hit.data);
+    // join the in-flight warm instead of issuing a duplicate request: the
+    // batch warm and the per-entry walk race each other on a cold cache
+    if (fundInflight[symbol]) return fundInflight[symbol];
     var url = STOCKAPI_ORIGIN + '/v1/fundamentals/' + encodeURIComponent(symbol);
-    return fetchStockapi(url).then(function (text) {
+    var pending = fetchStockapi(url).then(function (text) {
       var parsed = parseStockapiFundamentals(text);
       if (!parsed) throw new Error('bad fundamentals payload');
+      cacheSet(FUND_KEY_PREFIX + symbol, parsed);
       return parsed;
+    });
+    fundInflight[symbol] = pending;
+    var settle = function () { delete fundInflight[symbol]; };
+    pending.then(settle, settle);
+    return pending;
+  }
+
+  function warmFundamentals(symbols) {
+    if (!symbols.length) return Promise.resolve();
+    return runChunks(symbols, FUND_CONCURRENCY, function (symbol) {
+      // one network-level failure means the origin is unreachable: skip the
+      // rest of the queue instead of burning the 8s abort budget each time
+      if (isDown('stockapi-fund')) return Promise.resolve();
+      return stockapiFundamentals(symbol).then(null, function (err) {
+        if (err && err.network) markDown('stockapi-fund');
+      });
     });
   }
 
@@ -408,9 +449,10 @@
       // cold or blocked StockAPI — a miss simply ends the walk
       return Promise.resolve(stockapiQuote(symbol));
     }
-    // stockapiFundamentals: lazy per-symbol, gated on the session flag plus
-    // its own cooldown so a fundamentals outage never touches the quote warm
-    if (stockapiState !== 'ready' || isDown('stockapi-fund')) return Promise.resolve(null);
+    // stockapiFundamentals: cached first, otherwise joins the in-flight warm
+    // or fetches on its own. Gated only on its own cooldown — not on the
+    // quote-warm flag — so the two pools genuinely run in parallel.
+    if (isDown('stockapi-fund')) return Promise.resolve(null);
     return stockapiFundamentals(symbol).then(null, function (err) {
       if (err && err.network) markDown('stockapi-fund');
       return null; // HTTP errors (404/502) simply leave fields null
@@ -587,7 +629,11 @@
 
   function prefetch() {
     var universe = window.SERN.universe || [];
-    batchReady = warmStockapi(universe.map(function (u) { return u.symbol; }));
+    var symbols = universe.map(function (u) { return u.symbol; });
+    // both pools start together; only the quote warm gates getQuote, the
+    // fundamentals pool is joined symbol-by-symbol through fundInflight
+    warmFundamentals(symbols);
+    batchReady = warmStockapi(symbols);
     return batchReady;
   }
 

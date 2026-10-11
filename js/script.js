@@ -11,14 +11,10 @@
     return { ctx, width: rect.width, height: rect.height };
   }
 
-  function setupCanvasHiDPI(canvas, w, h) {
-    const dpr = window.devicePixelRatio || 1;
-    canvas.width = w * dpr;
-    canvas.height = h * dpr;
-    const ctx = canvas.getContext('2d');
-    ctx.scale(dpr, dpr);
-    return { ctx, width: w, height: h };
-  }
+  // Decorative canvases render a single still frame when the user asks for
+  // reduced motion — the animation itself is the thing being opted out of.
+  const reducedMotion = window.matchMedia &&
+    window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
   // ==================== Particle System ====================
   function initParticles() {
@@ -29,10 +25,13 @@
     const particles = [];
     const particleCount = 220;
 
+    // The element is position:fixed, so the bitmap must match the viewport:
+    // sizing it to document height made the browser squash a page-tall bitmap
+    // into the viewport, shrinking every particle to a fraction of a pixel.
     function resize() {
       const dpr = window.devicePixelRatio || 1;
       W = window.innerWidth;
-      H = document.documentElement.scrollHeight;
+      H = window.innerHeight;
       canvas.width = W * dpr;
       canvas.height = H * dpr;
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
@@ -54,7 +53,7 @@
     }
 
     let time = 0;
-    function draw() {
+    function frame() {
       ctx.clearRect(0, 0, W, H);
       time += 1;
 
@@ -93,12 +92,16 @@
           ctx.fill();
         }
       });
+    }
 
-      requestAnimationFrame(draw);
+    function loop() {
+      if (!document.hidden) frame();
+      requestAnimationFrame(loop);
     }
 
     resize();
-    draw();
+    frame();
+    if (!reducedMotion) requestAnimationFrame(loop);
     window.addEventListener('resize', resize);
   }
 
@@ -189,17 +192,23 @@
   function initGlobe() {
     const canvas = document.getElementById('globe-canvas');
     if (!canvas) return;
-    const dpr = window.devicePixelRatio || 1;
-    const rect = canvas.getBoundingClientRect();
-    canvas.width = rect.width * dpr;
-    canvas.height = rect.height * dpr;
     const ctx = canvas.getContext('2d');
-    ctx.scale(dpr, dpr);
-    const W = rect.width;
-    const H = rect.height;
-    const cx = W / 2;
-    const cy = H / 2;
-    const radius = Math.min(W, H) * 0.36;
+    let W, H, cx, cy, radius;
+
+    function resize() {
+      const dpr = window.devicePixelRatio || 1;
+      const rect = canvas.getBoundingClientRect();
+      canvas.width = rect.width * dpr;
+      canvas.height = rect.height * dpr;
+      // setTransform, not scale: reassigning the bitmap resets the context,
+      // so the DPR transform has to be re-applied on every resize
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      W = rect.width;
+      H = rect.height;
+      cx = W / 2;
+      cy = H / 2;
+      radius = Math.min(W, H) * 0.36;
+    }
 
     const latLines = 14;
     const lonLines = 18;
@@ -223,7 +232,7 @@
       return { x: x * cos - z * sin, y, z: x * sin + z * cos };
     }
 
-    function draw() {
+    function frame() {
       ctx.clearRect(0, 0, W, H);
       rotation += 0.003;
 
@@ -319,10 +328,25 @@
         ctx.fillStyle = `rgba(180,230,255,${alpha * 0.9})`;
         ctx.fill();
       });
-
-      requestAnimationFrame(draw);
     }
-    draw();
+
+    function loop() {
+      if (!document.hidden) frame();
+      requestAnimationFrame(loop);
+    }
+
+    resize();
+    frame();
+    if (!reducedMotion) requestAnimationFrame(loop);
+
+    let resizeTimer = null;
+    window.addEventListener('resize', function () {
+      clearTimeout(resizeTimer);
+      resizeTimer = setTimeout(function () {
+        resize();
+        if (reducedMotion) frame();
+      }, 250);
+    });
   }
 
   // ==================== Chart 1: Upward Line ====================
@@ -541,20 +565,22 @@
     const canvas = document.getElementById('cta-footer-canvas');
     if (!canvas) return;
     const dpr = window.devicePixelRatio || 1;
+    const ctx = canvas.getContext('2d');
 
     function resize() {
       const W = window.innerWidth;
       const H = window.innerHeight;
       canvas.width = W * dpr;
       canvas.height = H * dpr;
+      // setTransform, not scale: assigning the bitmap resets the context, so
+      // a plain ctx.scale() here would be lost on every window resize and the
+      // whole grid would collapse into the top-left 1/dpr of the canvas
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     }
     resize();
 
-    const ctx = canvas.getContext('2d');
-    ctx.scale(dpr, dpr);
-
     let time = 0;
-    function draw() {
+    function frame() {
       const W = window.innerWidth;
       const H = window.innerHeight;
       ctx.clearRect(0, 0, W, H);
@@ -631,11 +657,26 @@
       bgrad.addColorStop(1, 'rgba(59,130,246,0.06)');
       ctx.fillStyle = bgrad;
       ctx.fillRect(0, H * 0.85, W, H * 0.15);
-
-      requestAnimationFrame(draw);
     }
-    draw();
-    window.addEventListener('resize', resize);
+
+    function loop() {
+      if (!document.hidden) frame();
+      requestAnimationFrame(loop);
+    }
+
+    frame();
+    if (!reducedMotion) requestAnimationFrame(loop);
+
+    // debounced: every resize event reallocates a full-viewport bitmap, so a
+    // drag-resize must not rebuild it per event
+    let resizeTimer = null;
+    window.addEventListener('resize', function () {
+      clearTimeout(resizeTimer);
+      resizeTimer = setTimeout(function () {
+        resize();
+        if (reducedMotion) frame();
+      }, 150);
+    });
   }
 
   // ==================== Initialize ====================

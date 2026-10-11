@@ -68,8 +68,15 @@
   // scores === null so the UI can list them as data-insufficient (spec §4.3).
   function computeScores(entries, modelId) {
     var cfg = models[modelId];
+    // Reset every entry first: one that just lost enough metrics must drop
+    // its previous score, otherwise it falls out of the ranking board AND out
+    // of the data-insufficient list (both filter on entry.scores).
+    entries.forEach(function (e) { e.scores = null; });
+
+    // Data-driven, not status-driven: an entry still holding last-known data
+    // mid-refresh keeps its score instead of blanking the board.
     var valid = entries.filter(function (e) {
-      return e.status === 'done' && e.data && !e.data.insufficient;
+      return e.data && !e.data.insufficient;
     });
 
     // count usable valuation metrics per stock
