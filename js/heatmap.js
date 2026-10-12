@@ -520,6 +520,9 @@
   window.SERN.heatmap = {
     render: render,
     changeClass: changeClass,
+    // the drawer shows the same mark next to the company name; exposing the
+    // URL builder keeps one logo source for the whole page
+    logoUrl: logoUrl,
     // exposed for node-based sanity tests of the pure treemap math
     layout: {
       squarify: squarify,

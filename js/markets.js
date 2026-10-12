@@ -146,8 +146,10 @@
   var KLINE_BAR_MS = 34;      // per-bar reveal step
   var KLINE_HOLD_MS = 1500;   // full-chart hold before the next replay
   var KLINE_STAGGER_MS = 420; // per-chip start offset
-  var KLINE_RED = '#ef4444';  // --accent-red (canvas cannot read CSS vars)
-  var KLINE_GREEN = '#22c55e';
+  // Canvas cannot read CSS vars: these mirror the iOS system hues the
+  // markets skin uses for up/down (red up / green down, CN convention).
+  var KLINE_RED = '#ff453a';
+  var KLINE_GREEN = '#30d158';
 
   function fmtIndex(v) {
     if (v === null || v === undefined || !isFinite(v)) return '';
@@ -469,18 +471,21 @@
       ctx.fill();
       start = end;
     });
-    // inner hole
+    // inner hole — erased rather than filled, so the card's translucent
+    // glass shows through instead of an opaque disc
+    ctx.save();
+    ctx.globalCompositeOperation = 'destination-out';
     ctx.beginPath();
     ctx.arc(cx, cy, ir, 0, Math.PI * 2);
-    ctx.fillStyle = 'rgba(3, 7, 18, 1)';
     ctx.fill();
-    ctx.fillStyle = '#f8fafc';
-    ctx.font = '700 20px Inter, sans-serif';
+    ctx.restore();
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
+    ctx.fillStyle = '#ffffff';
+    ctx.font = '600 21px -apple-system, Inter, sans-serif';
     ctx.fillText(String(total), cx, cy - 6);
-    ctx.font = '400 10px Inter, sans-serif';
-    ctx.fillStyle = '#94a3b8';
+    ctx.font = '400 10px -apple-system, Inter, sans-serif';
+    ctx.fillStyle = 'rgba(235, 235, 245, 0.6)';
     ctx.fillText(t('dist.count'), cx, cy + 12);
   }
 
@@ -576,7 +581,7 @@
     var max = Math.max.apply(null, points);
     var range = max - min || 1;
     var up = points[points.length - 1] >= points[0];
-    var color = up ? '#22c55e' : '#ef4444';
+    var color = up ? '#30d158' : '#ff453a';
 
     var xy = points.map(function (p, i) {
       return [i / (points.length - 1) * w, h - 8 - (p - min) / range * (h - 16)];
@@ -651,6 +656,20 @@
   // renderDrawer drives both entries: pool rows (openDrawer) and off-universe
   // search results (openExternalDrawer). External entries arrive with
   // data=null (skeleton) and are filled asynchronously.
+  // Drawer company mark: same source as the heatmap tiles. The src is reset
+  // per stock and the image stays hidden until it loads, so a slow or missing
+  // logo never leaves a broken-image placeholder beside the name.
+  function renderDrawerLogo(symbol) {
+    var img = document.getElementById('drawer-logo');
+    if (!img) return;
+    var heatmap = window.SERN.heatmap;
+    img.classList.remove('loaded');
+    if (!heatmap || !heatmap.logoUrl) { img.removeAttribute('src'); return; }
+    img.onload = function () { img.classList.add('loaded'); };
+    img.onerror = function () { img.classList.remove('loaded'); };
+    img.src = heatmap.logoUrl(symbol);
+  }
+
   function renderDrawerSub(entry) {
     var d = entry.data;
     var suffix = '';
@@ -760,6 +779,7 @@
     document.getElementById('drawer-close').focus();
 
     document.getElementById('drawer-title').textContent = langName(entry.meta.name);
+    renderDrawerLogo(symbol);
     renderDrawerSub(entry);
     updateDrawerFav(entry);
 
@@ -1031,6 +1051,15 @@
 
     // segmented model switch
     var seg = document.getElementById('model-seg');
+    // The travelling thumb is pure CSS; all it needs is which slot is
+    // active, so the skin can move it without the script knowing any
+    // geometry. Kept in a data attribute rather than three rules that
+    // script and stylesheet both have to agree on.
+    function paintThumb() {
+      var active = seg.querySelector('button.active');
+      var idx = active ? Array.prototype.indexOf.call(seg.children, active) : 0;
+      seg.dataset.thumb = String(idx < 0 ? 0 : idx);
+    }
     seg.querySelectorAll('button').forEach(function (btn) {
       if (btn.dataset.model === state.model) btn.classList.add('active');
       btn.addEventListener('click', function () {
@@ -1038,10 +1067,12 @@
         localStorage.setItem('sern-model', state.model);
         seg.querySelectorAll('button').forEach(function (b) { b.classList.remove('active'); });
         btn.classList.add('active');
+        paintThumb();
         updateModelNote();
         refreshAllViews();
       });
     });
+    paintThumb();
     updateModelNote();
 
     // force refresh: wipe all data caches (prefs kept), re-warm, reload.
@@ -1113,6 +1144,7 @@
   };
 
   // ==================== Init ====================
+  // the navbar's scroll state is shared with the home page — see js/nav.js
   function init() {
     i18n.applyStatic();
     document.title = 'SERN FinTech - ' + t('page.title');

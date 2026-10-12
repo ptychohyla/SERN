@@ -26,6 +26,18 @@
     i18n.applyStatic();
   }
 
+  // The navbar is a floating glass capsule on both pages; once the page
+  // scrolls it drops to a denser fill so content passing underneath stays
+  // legible. Only the class flips here — the material lives in CSS.
+  var navbar = document.querySelector('.navbar');
+  if (navbar) {
+    var syncNav = function () {
+      navbar.classList.toggle('scrolled', window.scrollY > 8);
+    };
+    window.addEventListener('scroll', syncNav, { passive: true });
+    syncNav();
+  }
+
   var toggle = document.getElementById('nav-toggle');
   var links = document.getElementById('nav-links');
   if (!toggle || !links) return;

@@ -2001,3 +2001,1050 @@ input:focus-visible,
     transition-duration: 0.01ms !important;
   }
 }
+
+/* ============================================================
+   Markets Page — iOS "Liquid Glass" skin
+   ------------------------------------------------------------
+   Scoped to body.markets-page so the home page keeps its look.
+   Only presentation changes here: geometry, materials, motion.
+   Traded-colour semantics (red up / green down, sector hues) and
+   every data attribute the scripts read stay untouched.
+   ============================================================ */
+/* Both pages opt into the same material system by carrying this class; the
+   page-specific rules below then only adjust density and per-component look. */
+.markets-page,
+.ios-page {
+  /* iOS system palette, dark. Kept separate from the site accents so the
+     page can read as native iOS without recolouring the home page. */
+  --ios-blue: #0a84ff;
+  --ios-cyan: #64d2ff;
+  --ios-green: #30d158;
+  --ios-red: #ff453a;
+  --ios-yellow: #ffd60a;
+
+  --ios-bg: #000000;
+  --ios-label: #ffffff;
+  --ios-label-2: rgba(235, 235, 245, 0.6);
+  --ios-label-3: rgba(235, 235, 245, 0.3);
+
+  /* Liquid glass recipe: a translucent fill, a specular top edge, a bright
+     inner rim and a deep ambient shadow. Blur + saturate are what make it
+     read as a material instead of a plain panel. */
+  --glass-fill: rgba(24, 24, 30, 0.52);
+  --glass-fill-strong: rgba(20, 20, 26, 0.72);
+  --glass-hairline: rgba(255, 255, 255, 0.14);
+  --glass-hairline-soft: rgba(255, 255, 255, 0.08);
+  --glass-blur: blur(30px) saturate(180%);
+  --glass-shadow: 0 20px 50px rgba(0, 0, 0, 0.5), 0 2px 8px rgba(0, 0, 0, 0.3);
+  --glass-shadow-sm: 0 8px 24px rgba(0, 0, 0, 0.35), 0 1px 3px rgba(0, 0, 0, 0.25);
+  --glass-inner: inset 0 1px 0 rgba(255, 255, 255, 0.16), inset 0 -1px 0 rgba(0, 0, 0, 0.2);
+
+  /* Continuous-corner radii — Apple's squircle sits between a circle and a
+     rounded rect; a slightly larger radius than v-1 reproduces the feel. */
+  --r-xs: 10px;
+  --r-sm: 14px;
+  --r-md: 20px;
+  --r-lg: 28px;
+  --r-xl: 34px;
+
+  --ease-ios: cubic-bezier(0.32, 0.72, 0, 1);
+  --ease-soft: cubic-bezier(0.4, 0, 0.2, 1);
+  /* slight overshoot for the segmented thumb, mirrored from iOS */
+  --ease-spring: cubic-bezier(0.34, 1.32, 0.5, 1);
+
+  /* Type: SF-alike stack, tightened tracking on the display sizes. */
+  --font-ios: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'SF Pro Display',
+    'Inter', 'Helvetica Neue', 'PingFang SC', 'Hiragino Sans', sans-serif;
+}
+
+/* ---------- Backdrop: iOS dark canvas + ambient colour ---------- */
+.ios-page {
+  font-family: var(--font-ios);
+  background-color: var(--ios-bg);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+.ios-page .bg-grid {
+  background-image:
+    radial-gradient(circle at 1px 1px, rgba(255, 255, 255, 0.05) 1px, transparent 0);
+  background-size: 44px 44px;
+  mask-image: radial-gradient(ellipse 90% 70% at 50% 30%, black 20%, transparent 78%);
+  -webkit-mask-image: radial-gradient(ellipse 90% 70% at 50% 30%, black 20%, transparent 78%);
+}
+/* Colour temperature: cool blue up top, warm violet low — the light that
+   bleeds through the glass panels. */
+.ios-page .bg-glow {
+  background:
+    radial-gradient(ellipse 55% 40% at 15% 8%, rgba(10, 132, 255, 0.16) 0%, transparent 62%),
+    radial-gradient(ellipse 45% 35% at 88% 22%, rgba(191, 90, 242, 0.12) 0%, transparent 60%),
+    radial-gradient(ellipse 60% 45% at 50% 92%, rgba(100, 210, 255, 0.08) 0%, transparent 65%);
+}
+.ios-page .particle-canvas { opacity: 0.55; }
+
+/* ---------- Navigation: floating glass capsule ---------- */
+.ios-page .navbar {
+  top: 10px;
+  left: 50%;
+  right: auto;
+  transform: translateX(-50%);
+  width: min(1160px, calc(100% - 24px));
+  padding: 9px 0;
+  background: rgba(18, 18, 24, 0.58);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+  border: 1px solid var(--glass-hairline-soft);
+  border-radius: var(--r-lg);
+  box-shadow: var(--glass-shadow), var(--glass-inner);
+  transition: background 0.3s var(--ease-soft), box-shadow 0.3s var(--ease-soft);
+}
+/* Once the page scrolls the bar thins out and the blur does the work. */
+.ios-page .navbar.scrolled {
+  background: rgba(12, 12, 16, 0.72);
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.6), var(--glass-inner);
+}
+.ios-page .nav-container { padding: 0 8px 0 18px; }
+.ios-page .logo { font-size: 1rem; letter-spacing: -0.015em; }
+.ios-page .nav-links { gap: 4px; }
+.ios-page .nav-links a {
+  padding: 8px 14px;
+  border-radius: 999px;
+  font-size: 0.85rem;
+  font-weight: 500;
+  transition: color 0.2s var(--ease-soft), background 0.2s var(--ease-soft);
+}
+.ios-page .nav-links a:hover {
+  background: rgba(255, 255, 255, 0.08);
+}
+.ios-page .nav-links a.active {
+  color: var(--ios-label);
+  background: rgba(255, 255, 255, 0.12);
+}
+.ios-page .nav-links a.active::after { display: none; }
+.ios-page .nav-toggle,
+.ios-page .lang-toggle {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  color: var(--ios-label-2);
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid var(--glass-hairline-soft);
+  transition: color 0.2s var(--ease-soft), background 0.2s var(--ease-soft);
+}
+.ios-page .lang-toggle { margin-left: 10px; }
+.ios-page .nav-toggle:hover,
+.ios-page .lang-toggle:hover {
+  color: var(--ios-label);
+  background: rgba(255, 255, 255, 0.12);
+}
+/* The phone sheet: full glass, big radius, iOS list rows. */
+.ios-page .nav-links.open {
+  background: rgba(20, 20, 26, 0.82);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+  border: 1px solid var(--glass-hairline);
+  border-radius: var(--r-md);
+  box-shadow: var(--glass-shadow);
+  padding: 8px;
+  top: calc(100% + 10px);
+  right: 0;
+}
+.ios-page .nav-links.open a {
+  border-radius: var(--r-xs);
+  padding: 11px 14px;
+}
+.ios-page .nav-links.open a:hover { background: rgba(255, 255, 255, 0.08); }
+.ios-page .nav-links.open a.active {
+  color: var(--ios-blue);
+  background: rgba(10, 132, 255, 0.16);
+}
+
+/* ---------- Page header ---------- */
+.markets-page .markets-main { padding: 140px 0 96px; }
+/* The bar floats, so anchored sections need room above them. */
+.markets-page section[id],
+.markets-page [id].board-section { scroll-margin-top: 104px; }
+.markets-page .markets-title {
+  font-size: 2.6rem;
+  font-weight: 700;
+  letter-spacing: -0.035em;
+  background: none;
+  -webkit-text-fill-color: currentColor;
+  color: var(--ios-label);
+}
+.markets-page .markets-subtitle {
+  margin-top: 10px;
+  color: var(--ios-label-2);
+  font-size: 0.95rem;
+  letter-spacing: -0.005em;
+  line-height: 1.5;
+}
+
+/* ---------- Search: iOS search field ---------- */
+.markets-page .search-section { max-width: 600px; margin-bottom: 30px; }
+.markets-page .search-box {
+  gap: 9px;
+  padding: 0 14px;
+  background: var(--glass-fill);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+  border: 1px solid var(--glass-hairline-soft);
+  border-radius: var(--r-sm);
+  box-shadow: var(--glass-shadow-sm), var(--glass-inner);
+  transition: border-color 0.2s var(--ease-soft), box-shadow 0.25s var(--ease-soft);
+}
+.markets-page .search-box:focus-within {
+  border-color: rgba(10, 132, 255, 0.55);
+  box-shadow: 0 0 0 4px rgba(10, 132, 255, 0.18), var(--glass-shadow-sm);
+}
+.markets-page .search-icon { color: var(--ios-label-3); }
+.markets-page #search-input {
+  height: 48px;
+  font-size: 1rem;
+  letter-spacing: -0.01em;
+}
+.markets-page #search-input::placeholder { color: var(--ios-label-3); }
+.markets-page .search-clear {
+  width: 22px;
+  height: 22px;
+  font-size: 0.7rem;
+  color: rgba(235, 235, 245, 0.75);
+  background: rgba(120, 120, 128, 0.34);
+}
+.markets-page .search-clear:hover {
+  background: rgba(120, 120, 128, 0.5);
+  color: #fff;
+}
+.markets-page .search-panel {
+  padding: 6px;
+  background: rgba(22, 22, 28, 0.86);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+  border: 1px solid var(--glass-hairline);
+  border-radius: var(--r-md);
+  box-shadow: var(--glass-shadow);
+}
+.markets-page .search-group-title {
+  font-size: 0.68rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: var(--ios-label-3);
+  padding: 9px 12px 5px;
+}
+.markets-page .search-item {
+  padding: 11px 12px;
+  border-radius: var(--r-xs);
+  font-size: 0.92rem;
+  transition: background 0.15s var(--ease-soft);
+}
+.markets-page .search-item:hover,
+.markets-page .search-item.active { background: rgba(255, 255, 255, 0.09); }
+.markets-page .search-item-symbol { color: var(--ios-label-3); font-size: 0.82rem; }
+.markets-page .search-chip {
+  color: var(--ios-cyan);
+  background: rgba(100, 210, 255, 0.14);
+  border: none;
+  border-radius: 999px;
+  font-size: 0.66rem;
+  letter-spacing: 0.02em;
+}
+.markets-page .search-note { color: var(--ios-label-3); }
+
+/* ---------- Index ticker ---------- */
+.markets-page .ticker-row { margin-bottom: 34px; gap: 12px; }
+/* Cards fade out at the edges instead of being cut off. */
+.markets-page .ticker-strip {
+  mask-image: linear-gradient(90deg, transparent 0, #000 32px, #000 calc(100% - 32px), transparent 100%);
+  -webkit-mask-image: linear-gradient(90deg, transparent 0, #000 32px, #000 calc(100% - 32px), transparent 100%);
+}
+@media (prefers-reduced-motion: reduce) {
+  .markets-page .ticker-strip { mask-image: none; -webkit-mask-image: none; }
+}
+.markets-page .ticker-item {
+  gap: 12px;
+  padding: 10px 14px;
+  background: var(--glass-fill);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+  border: 1px solid var(--glass-hairline-soft);
+  border-radius: var(--r-md);
+  box-shadow: var(--glass-shadow-sm), var(--glass-inner);
+  transition: transform 0.25s var(--ease-ios), border-color 0.25s var(--ease-soft);
+}
+.markets-page .ticker-item:hover {
+  border-color: var(--glass-hairline);
+  background: var(--glass-fill-strong);
+  transform: translateY(-2px);
+}
+.markets-page .ticker-name { font-size: 0.72rem; color: var(--ios-label-2); font-weight: 500; }
+.markets-page .ticker-price { font-size: 0.95rem; font-weight: 600; letter-spacing: -0.02em; }
+.markets-page .ticker-value { font-size: 0.74rem; font-weight: 600; }
+.markets-page .ticker-value.up { color: var(--ios-red); }
+.markets-page .ticker-value.down { color: var(--ios-green); }
+.markets-page .ticker-na { color: var(--ios-label-3); }
+.markets-page .refresh-icon {
+  width: 46px;
+  height: 46px;
+  border-radius: 50%;
+  background: var(--glass-fill);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+  border: 1px solid var(--glass-hairline-soft);
+  box-shadow: var(--glass-shadow-sm), var(--glass-inner);
+  color: var(--ios-label-2);
+}
+.markets-page .refresh-icon:hover {
+  color: var(--ios-label);
+  background: var(--glass-fill-strong);
+  border-color: var(--glass-hairline);
+}
+
+/* ---------- Market filter: inset glass dropdown ---------- */
+.markets-page .market-filter-section { gap: 10px 12px; margin-bottom: 26px; }
+.markets-page .filter-label {
+  font-size: 0.7rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  color: var(--ios-label-3);
+}
+.markets-page .market-select {
+  padding: 9px 36px 9px 15px;
+  font-size: 0.84rem;
+  font-weight: 500;
+  background-color: rgba(120, 120, 128, 0.2);
+  background-image: linear-gradient(45deg, transparent 50%, var(--ios-label-2) 50%),
+    linear-gradient(135deg, var(--ios-label-2) 50%, transparent 50%);
+  background-position: right 16px center, right 11px center;
+  background-size: 5px 5px, 5px 5px;
+  background-repeat: no-repeat;
+  border: 1px solid var(--glass-hairline-soft);
+  border-radius: 999px;
+  box-shadow: var(--glass-inner);
+}
+.markets-page .market-select:hover {
+  background-color: rgba(120, 120, 128, 0.28);
+  border-color: var(--glass-hairline);
+}
+.markets-page .market-select:focus-visible {
+  border-color: rgba(10, 132, 255, 0.6);
+  box-shadow: 0 0 0 4px rgba(10, 132, 255, 0.18);
+}
+.markets-page .market-select option {
+  color: var(--ios-label);
+  background-color: #1c1c1e;
+}
+
+/* ---------- Section headings ---------- */
+.markets-page .board-title {
+  padding-left: 0;
+  font-size: 1.4rem;
+  font-weight: 700;
+  letter-spacing: -0.03em;
+}
+.markets-page .board-title::before { display: none; }
+.markets-page .board-subtitle {
+  padding-left: 0;
+  margin-top: 4px;
+  color: var(--ios-label-3);
+  font-size: 0.85rem;
+  letter-spacing: -0.005em;
+}
+.markets-page .board-section { margin-bottom: 52px; }
+.markets-page .heatmap-section { margin-bottom: 28px; }
+.markets-page .distribution-section { margin-bottom: 52px; }
+
+/* ---------- Shared glass surface ---------- */
+.markets-page .heatmap,
+.markets-page .rank-board,
+.markets-page .donut-card,
+.markets-page .drawer-spark-wrap,
+.markets-page .metric-box {
+  position: relative;
+  background: var(--glass-fill);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+  border: 1px solid var(--glass-hairline-soft);
+  box-shadow: var(--glass-shadow), var(--glass-inner);
+}
+/* Specular sweep along the top edge of every glass panel. */
+.markets-page .heatmap::before,
+.markets-page .rank-board::before,
+.markets-page .donut-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 12%;
+  right: 12%;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.5), transparent);
+  pointer-events: none;
+  z-index: 2;
+}
+.markets-page .heatmap { border-radius: var(--r-xl); padding: 18px 20px; }
+/* overflow:hidden would make the board a scroll container and kill the
+   sticky header, so the corners are rounded on the rows instead. */
+.markets-page .rank-board { border-radius: var(--r-xl); overflow: visible; }
+.markets-page .rank-board > .rank-row:last-child {
+  border-bottom-left-radius: var(--r-xl);
+  border-bottom-right-radius: var(--r-xl);
+}
+.markets-page .rank-row.rank-head {
+  border-top-left-radius: var(--r-xl);
+  border-top-right-radius: var(--r-xl);
+}
+.markets-page .donut-card { border-radius: var(--r-lg); padding: 24px 24px 22px; }
+
+/* ---------- Heatmap ---------- */
+.markets-page .heat-sector-label {
+  height: 18px;
+  line-height: 18px;
+  font-size: 0.6rem;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  color: var(--ios-label-3);
+}
+.markets-page .heat-tile {
+  padding: 1px 2px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  transition: transform 0.2s var(--ease-ios), box-shadow 0.2s var(--ease-soft),
+    border-color 0.2s var(--ease-soft);
+}
+.markets-page .heat-tile:hover {
+  border-color: rgba(255, 255, 255, 0.4);
+  box-shadow: 0 8px 22px rgba(0, 0, 0, 0.45);
+  transform: scale(1.012);
+}
+/* Small tiles would round into pills at the full 8px radius. */
+.markets-page .heat-tile-sm { border-radius: 6px; }
+.markets-page .heat-tile-xs { border-radius: 4px; }
+.markets-page .heat-symbol { font-size: 0.73rem; font-weight: 600; letter-spacing: -0.01em; }
+.markets-page .heat-value { font-size: 0.73rem; font-weight: 500; opacity: 0.85; }
+.markets-page .heat-logo {
+  border-radius: 5px;
+  background: rgba(255, 255, 255, 0.94);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.35);
+}
+/* iOS system hues carry the up/down bands now; intensity still encodes the
+   size of the move, and green-down / red-up stays exactly as before. */
+.markets-page .heat-up-3 { background: rgba(255, 69, 58, 0.92); }
+.markets-page .heat-up-2 { background: rgba(255, 69, 58, 0.62); }
+.markets-page .heat-up-1 { background: rgba(255, 69, 58, 0.34); }
+.markets-page .heat-flat {
+  background: rgba(120, 120, 128, 0.26);
+  color: var(--ios-label-2);
+}
+.markets-page .heat-down-1 { background: rgba(48, 209, 88, 0.34); }
+.markets-page .heat-down-2 { background: rgba(48, 209, 88, 0.62); }
+.markets-page .heat-down-3 { background: rgba(48, 209, 88, 0.92); }
+.markets-page .heat-na {
+  background: rgba(120, 120, 128, 0.16);
+  color: var(--ios-label-3);
+}
+.markets-page .heat-tile-fav::after { color: var(--ios-yellow); }
+
+/* ---------- Model switcher: iOS segmented control ---------- */
+.markets-page .model-bar { gap: 12px; margin-bottom: 52px; }
+.markets-page .model-seg {
+  position: relative;
+  width: 100%;
+  max-width: 460px;
+  padding: 3px;
+  background: rgba(120, 120, 128, 0.2);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+  border: 1px solid var(--glass-hairline-soft);
+  border-radius: var(--r-xs);
+  box-shadow: var(--glass-inner);
+}
+.markets-page .model-seg button {
+  position: relative;
+  z-index: 1;
+  flex: 1;
+  padding: 8px 16px;
+  border-radius: 7px;
+  font-size: 0.82rem;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  color: var(--ios-label-2);
+  transition: color 0.25s var(--ease-soft);
+}
+.markets-page .model-seg button:hover { color: var(--ios-label); }
+.markets-page .model-seg button.active {
+  color: var(--ios-label);
+  background: none;
+  box-shadow: none;
+}
+/* The travelling thumb sits behind the labels and springs between slots. */
+.markets-page .model-seg::after {
+  content: '';
+  position: absolute;
+  top: 3px;
+  bottom: 3px;
+  left: 3px;
+  /* Equal slots: the thumb is one third of the track, so a 100% translate
+     of its own width lands it exactly on the next segment. */
+  width: calc((100% - 6px) / 3);
+  border-radius: 7px;
+  background: rgba(255, 255, 255, 0.17);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.22);
+  pointer-events: none;
+  transition: transform 0.34s var(--ease-spring), background 0.25s var(--ease-soft);
+}
+.markets-page .model-seg[data-thumb='1']::after { transform: translateX(100%); }
+.markets-page .model-seg[data-thumb='2']::after { transform: translateX(200%); }
+.markets-page .model-seg[data-thumb='0']::after { transform: translateX(0); }
+.markets-page .model-note { color: var(--ios-label-3); font-size: 0.74rem; line-height: 1.5; }
+
+/* ---------- Rank board: inset grouped list ---------- */
+.markets-page .rank-row {
+  grid-template-columns: 44px minmax(180px, 2fr) minmax(150px, 1.4fr) minmax(170px, 1.6fr) 96px;
+  gap: 12px;
+  padding: 15px 22px;
+  border-top: 1px solid rgba(255, 255, 255, 0.055);
+  transition: background 0.16s var(--ease-soft);
+}
+.markets-page .rank-row.rank-head {
+  position: sticky;
+  top: 82px;
+  z-index: 2;
+  /* Nearly opaque: a translucent sticky header lets the row scrolling under
+     it ghost through the column labels. */
+  background: rgba(14, 14, 18, 0.95);
+  backdrop-filter: blur(20px) saturate(180%);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  border-top: none;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.055);
+  font-size: 0.7rem;
+  letter-spacing: 0.05em;
+  color: var(--ios-label-3);
+}
+.markets-page .rank-row:not(.rank-head):hover { background: rgba(255, 255, 255, 0.07); }
+.markets-page .rank-row:not(.rank-head):active { background: rgba(255, 255, 255, 0.11); }
+/* Disclosure chevron — the strongest single cue that a row is tappable. */
+.markets-page .rank-row:not(.rank-head)::after {
+  content: '';
+  position: absolute;
+  right: 22px;
+  top: 50%;
+  width: 8px;
+  height: 8px;
+  margin-top: -4px;
+  border-right: 1.5px solid var(--ios-label-3);
+  border-bottom: 1.5px solid var(--ios-label-3);
+  transform: rotate(-45deg);
+  transition: border-color 0.16s var(--ease-soft), transform 0.2s var(--ease-ios);
+  pointer-events: none;
+}
+.markets-page .rank-row:not(.rank-head) { position: relative; }
+.markets-page .rank-row:not(.rank-head):hover::after {
+  border-color: var(--ios-label);
+  transform: rotate(-45deg) translate(2px, -2px);
+}
+.markets-page .rank-score { padding-right: 22px; }
+.markets-page .rank-num {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--ios-label-3);
+  font-variant-numeric: tabular-nums;
+}
+.markets-page .rank-row:nth-child(2) .rank-num,
+.markets-page .rank-row:nth-child(3) .rank-num,
+.markets-page .rank-row:nth-child(4) .rank-num { color: var(--ios-label-2); }
+.markets-page .rank-company-name { font-size: 0.94rem; font-weight: 600; letter-spacing: -0.015em; }
+.markets-page .rank-company-symbol {
+  font-size: 0.75rem;
+  color: var(--ios-label-3);
+  margin-top: 1px;
+}
+.markets-page .rank-fav { color: var(--ios-yellow); }
+.markets-page .rank-divider {
+  padding: 14px 22px 6px;
+  font-size: 0.68rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  color: var(--ios-label-3);
+  border-top: 1px solid rgba(255, 255, 255, 0.055);
+}
+.markets-page .rank-metrics { font-size: 0.83rem; color: var(--ios-label-2); font-weight: 500; }
+.markets-page .rank-metrics-head { font-size: 0.7rem; color: var(--ios-label-3); font-weight: 600; }
+.markets-page .rank-score { font-size: 0.95rem; font-weight: 600; color: var(--ios-cyan); }
+.markets-page .rank-head .rank-score { font-size: 0.7rem; color: var(--ios-label-3); }
+.markets-page .board-placeholder { color: var(--ios-label-3); }
+
+/* ---------- Tags: iOS pills ---------- */
+.markets-page .market-tag,
+.markets-page .sector-tag {
+  padding: 3px 10px;
+  border-radius: 999px;
+  font-size: 0.68rem;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  border: none;
+}
+.markets-page .market-tag { background: rgba(10, 132, 255, 0.2); color: #6fb7ff; }
+.markets-page .sector-tag { background: rgba(120, 120, 128, 0.24); color: var(--ios-label-2); }
+.markets-page .market-cn { background: rgba(255, 69, 58, 0.2); color: #ff8b83; }
+.markets-page .market-hk { background: rgba(255, 159, 10, 0.2); color: #ffc266; }
+.markets-page .market-jp { background: rgba(48, 209, 88, 0.2); color: #7ee39c; }
+.markets-page .market-kr { background: rgba(100, 210, 255, 0.2); color: #8fdcff; }
+.markets-page .market-tw { background: rgba(255, 214, 10, 0.2); color: #ffe066; }
+.markets-page .market-eu { background: rgba(191, 90, 242, 0.22); color: #d9a2ff; }
+
+/* ---------- Drawer: iOS sheet ---------- */
+.markets-page .drawer-overlay {
+  background: rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(6px) saturate(120%);
+  -webkit-backdrop-filter: blur(6px) saturate(120%);
+}
+.markets-page .drawer {
+  background: rgba(20, 20, 26, 0.78);
+  backdrop-filter: blur(40px) saturate(180%);
+  -webkit-backdrop-filter: blur(40px) saturate(180%);
+  border-left: 1px solid var(--glass-hairline-soft);
+  border-radius: var(--r-xl) 0 0 var(--r-xl);
+  box-shadow: -30px 0 80px rgba(0, 0, 0, 0.6);
+  overflow: hidden;
+  transition: transform 0.42s var(--ease-ios), visibility 0s linear 0.42s;
+}
+.markets-page .drawer.open {
+  transition: transform 0.42s var(--ease-ios), visibility 0s;
+}
+/* Grabber on the leading edge, mirroring the home-indicator affordance. */
+.markets-page .drawer::before {
+  content: '';
+  position: absolute;
+  left: 7px;
+  top: 50%;
+  width: 4px;
+  height: 44px;
+  margin-top: -22px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.22);
+  pointer-events: none;
+}
+.markets-page .drawer-header {
+  padding: 24px 26px 16px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+}
+.markets-page .drawer-title { font-size: 1.3rem; font-weight: 700; letter-spacing: -0.03em; }
+.markets-page .drawer-sub { color: var(--ios-label-3); font-size: 0.8rem; }
+.markets-page .drawer-content { padding: 20px 26px 30px; }
+.markets-page .drawer-close,
+.markets-page .drawer-fav {
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  background: rgba(120, 120, 128, 0.24);
+  color: var(--ios-label-2);
+  font-size: 0.8rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+}
+.markets-page .drawer-close:hover,
+.markets-page .drawer-fav:hover {
+  background: rgba(120, 120, 128, 0.4);
+  color: var(--ios-label);
+}
+.markets-page .drawer-fav:hover,
+.markets-page .drawer-fav.starred { color: var(--ios-yellow); }
+.markets-page .drawer-fav { margin-left: auto; margin-right: 8px; }
+.markets-page .drawer-section-title {
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.07em;
+  color: var(--ios-label-3);
+}
+.markets-page .metric-box { border-radius: var(--r-xs); padding: 11px 13px; }
+.markets-page .metric-box-label { font-size: 0.7rem; color: var(--ios-label-3); }
+.markets-page .metric-box-value { font-size: 0.95rem; font-weight: 600; letter-spacing: -0.01em; }
+.markets-page .drawer-spark-wrap { border-radius: var(--r-sm); padding: 12px; }
+.markets-page .score-break-head { color: var(--ios-label-2); font-size: 0.74rem; }
+.markets-page .mini-bar-track { height: 6px; background: rgba(120, 120, 128, 0.28); border-radius: 999px; }
+.markets-page .mini-bar-fill { border-radius: 999px; }
+.markets-page .mini-bar-valuation { background: linear-gradient(90deg, #0a84ff, #64d2ff); }
+.markets-page .mini-bar-quality { background: linear-gradient(90deg, #30d158, #a8e05f); }
+.markets-page .mini-bar-growth { background: linear-gradient(90deg, #ff9f0a, #ffd60a); }
+.markets-page .drawer-yahoo {
+  background: linear-gradient(180deg, #0a84ff, #0060df);
+  border: 1px solid rgba(120, 190, 255, 0.35);
+  border-radius: var(--r-sm);
+  box-shadow: 0 10px 26px rgba(10, 132, 255, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.25);
+  font-weight: 600;
+}
+.markets-page .drawer-yahoo:hover {
+  box-shadow: 0 14px 34px rgba(10, 132, 255, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.3);
+}
+
+/* ---------- Donuts + legends ---------- */
+.markets-page .donut-card-title { font-size: 0.95rem; font-weight: 600; letter-spacing: -0.015em; }
+.markets-page .legend-box { border-top: 1px solid rgba(255, 255, 255, 0.06); padding-top: 14px; margin-top: 18px; }
+.markets-page .legend-row { font-size: 0.83rem; padding: 5px 0; }
+.markets-page .legend-dot { width: 10px; height: 10px; box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.12); }
+.markets-page .legend-label { color: var(--ios-label-2); }
+.markets-page .legend-count { color: var(--ios-label); font-weight: 600; }
+
+/* ---------- Insufficient list ---------- */
+.markets-page .insufficient-section {
+  background: rgba(255, 69, 58, 0.07);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+  border: 1px solid rgba(255, 69, 58, 0.2);
+  border-radius: var(--r-lg);
+  padding: 24px 26px;
+  box-shadow: var(--glass-shadow-sm);
+}
+.markets-page .insufficient-row {
+  background: rgba(120, 120, 128, 0.18);
+  border: 1px solid var(--glass-hairline-soft);
+  border-radius: 999px;
+  padding: 8px 14px;
+  font-size: 0.83rem;
+}
+.markets-page .insufficient-symbol { color: var(--ios-label-3); font-size: 0.75rem; }
+.markets-page .insufficient-retry {
+  padding: 4px 12px;
+  color: var(--ios-label);
+  background: rgba(255, 255, 255, 0.12);
+  border: 1px solid var(--glass-hairline-soft);
+  border-radius: 999px;
+  font-size: 0.74rem;
+  font-weight: 600;
+  transition: background 0.16s var(--ease-soft);
+}
+.markets-page .insufficient-retry:hover {
+  background: rgba(255, 255, 255, 0.2);
+  border-color: var(--glass-hairline);
+}
+
+/* ---------- Focus rings: iOS blue halo ---------- */
+.ios-page a:focus-visible,
+.ios-page button:focus-visible,
+.ios-page input:focus-visible,
+.ios-page select:focus-visible,
+.ios-page [role='button']:focus-visible {
+  outline: 2px solid var(--ios-blue);
+  outline-offset: 2px;
+}
+.markets-page .heat-tile:focus-visible {
+  outline: 2px solid var(--ios-blue);
+  outline-offset: -2px;
+  z-index: 3;
+}
+.markets-page .rank-row:focus-visible {
+  outline: 2px solid var(--ios-blue);
+  outline-offset: -2px;
+  background: rgba(10, 132, 255, 0.12);
+}
+.ios-page .skip-link {
+  background: rgba(20, 20, 26, 0.9);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+  border: 1px solid var(--glass-hairline);
+  border-radius: 999px;
+  font-weight: 500;
+}
+
+/* ---------- Responsive ---------- */
+@media (max-width: 900px) {
+  .markets-page .markets-main { padding: 128px 0 72px; }
+  .markets-page .rank-row {
+    grid-template-columns: 40px minmax(140px, 1fr) auto;
+    gap: 10px;
+    padding: 13px 18px;
+  }
+  .markets-page .rank-row:not(.rank-head)::after { right: 14px; }
+  .markets-page .rank-score { padding-right: 18px; }
+  .markets-page .rank-row.rank-head { top: 78px; }
+}
+@media (max-width: 768px) {
+  .ios-page .navbar { top: 8px; width: calc(100% - 16px); padding: 8px 0; }
+  .ios-page .nav-container { padding: 0 6px 0 14px; }
+}
+@media (max-width: 640px) {
+  .markets-page .markets-main { padding: 116px 0 64px; }
+  .markets-page .markets-title { font-size: 1.9rem; letter-spacing: -0.03em; }
+  .markets-page .markets-subtitle { font-size: 0.87rem; }
+  .markets-page .model-seg { max-width: none; }
+  .markets-page .heatmap { border-radius: var(--r-lg); padding: 14px 12px; }
+  .markets-page .donut-card { border-radius: var(--r-lg); padding: 20px 18px; }
+  .markets-page .board-title { font-size: 1.2rem; }
+  .markets-page .rank-row.rank-head { top: 76px; }
+  .markets-page .drawer { border-radius: var(--r-lg) var(--r-lg) 0 0; }
+  .markets-page .drawer::before {
+    left: 50%;
+    top: 8px;
+    width: 40px;
+    height: 4px;
+    margin: 0 0 0 -20px;
+  }
+  .markets-page .drawer-header { padding: 26px 20px 14px; }
+}
+
+/* ============================================================
+   Home Page — iOS "Liquid Glass" skin
+   ------------------------------------------------------------
+   Same material and token system as the markets skin (see the
+   shared .markets-page / .ios-page root above); only the home
+   components are re-dressed here.
+   ============================================================ */
+
+/* ---------- Hero ---------- */
+.ios-page .hero { padding: 150px 0 84px; }
+.ios-page .hero-title {
+  font-size: 3.05rem;
+  font-weight: 700;
+  letter-spacing: -0.035em;
+  line-height: 1.08;
+  margin-bottom: 20px;
+}
+/* The gradient stays, but as an iOS blue → cyan pair. */
+.ios-page .text-gradient {
+  background: linear-gradient(120deg, #0a84ff 0%, #64d2ff 55%, #bf5af2 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+.ios-page .hero-subtitle {
+  color: var(--ios-label-2);
+  font-size: 1.02rem;
+  letter-spacing: -0.005em;
+  line-height: 1.55;
+  margin-bottom: 30px;
+  max-width: 34ch;
+}
+.ios-page .hero-buttons { gap: 10px; }
+.ios-page .globe-glow {
+  width: 420px;
+  height: 420px;
+  background: radial-gradient(circle, rgba(10, 132, 255, 0.38) 0%, rgba(100, 210, 255, 0.18) 45%, transparent 72%);
+  filter: blur(70px);
+}
+
+/* ---------- Buttons ---------- */
+.ios-page .btn {
+  padding: 12px 24px;
+  border-radius: 999px;
+  font-size: 0.9rem;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  transition: transform 0.25s var(--ease-ios), box-shadow 0.25s var(--ease-soft),
+    background 0.25s var(--ease-soft), border-color 0.25s var(--ease-soft);
+}
+.ios-page .btn-primary {
+  background: linear-gradient(180deg, #0a84ff, #0060df);
+  border: 1px solid rgba(120, 190, 255, 0.4);
+  box-shadow: 0 10px 28px rgba(10, 132, 255, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.28);
+}
+.ios-page .btn-primary:hover {
+  transform: translateY(-1px) scale(1.015);
+  box-shadow: 0 14px 36px rgba(10, 132, 255, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.34);
+}
+.ios-page .btn-outline {
+  background: var(--glass-fill);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+  border: 1px solid var(--glass-hairline);
+  box-shadow: var(--glass-shadow-sm), var(--glass-inner);
+}
+.ios-page .btn-outline:hover {
+  color: var(--ios-label);
+  border-color: rgba(255, 255, 255, 0.3);
+  background: var(--glass-fill-strong);
+}
+.ios-page .btn-large { padding: 14px 38px; font-size: 1rem; }
+
+/* ---------- Stat bars: one glass slab, hairline dividers ---------- */
+.ios-page .stats-bar,
+.ios-page .stats-bar-dark {
+  padding: 32px 0;
+  margin: 0 auto;
+  max-width: 1160px;
+  background: var(--glass-fill);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+  border: 1px solid var(--glass-hairline-soft);
+  border-radius: var(--r-lg);
+  box-shadow: var(--glass-shadow-sm), var(--glass-inner);
+}
+.ios-page .stat-value {
+  font-size: 2.1rem;
+  font-weight: 600;
+  letter-spacing: -0.035em;
+}
+.ios-page .stat-plus,
+.ios-page .stat-percent,
+.ios-page .stat-unit,
+.ios-page .stat-small { color: var(--ios-cyan); font-weight: 600; }
+.ios-page .stat-label {
+  font-size: 0.78rem;
+  color: var(--ios-label-3);
+  letter-spacing: 0.01em;
+}
+.ios-page .stat-divider {
+  background: linear-gradient(to bottom, transparent, var(--glass-hairline), transparent);
+}
+
+/* ---------- Section titles ---------- */
+.ios-page .section-title {
+  font-size: 1.45rem;
+  font-weight: 700;
+  letter-spacing: -0.03em;
+}
+
+/* ---------- Solution cards ---------- */
+.ios-page .solutions { padding: 76px 0; }
+.ios-page .solutions-grid { gap: 16px; }
+.ios-page .solution-card {
+  background: var(--glass-fill);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+  border: 1px solid var(--glass-hairline-soft);
+  border-radius: var(--r-lg);
+  padding: 24px;
+  box-shadow: var(--glass-shadow), var(--glass-inner);
+  transition: transform 0.3s var(--ease-ios), box-shadow 0.3s var(--ease-soft),
+    border-color 0.3s var(--ease-soft);
+}
+/* Specular sweep, matching every other glass panel. */
+.ios-page .solution-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 12%;
+  right: 12%;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.5), transparent);
+}
+.ios-page .solution-card:hover {
+  transform: translateY(-4px);
+  border-color: var(--glass-hairline);
+  box-shadow: 0 26px 60px rgba(0, 0, 0, 0.55), var(--glass-inner);
+}
+.ios-page .card-header h3 {
+  font-size: 1rem;
+  font-weight: 600;
+  letter-spacing: -0.015em;
+  margin-bottom: 16px;
+}
+.ios-page .metric-row { border-bottom: 1px solid rgba(255, 255, 255, 0.055); padding: 7px 0; }
+.ios-page .metric-name { color: var(--ios-label-3); font-size: 0.78rem; }
+.ios-page .metric-value { font-weight: 600; letter-spacing: -0.01em; }
+.ios-page .metric-value.negative { color: var(--ios-red); }
+.ios-page .card-list li { color: var(--ios-label-2); font-size: 0.82rem; padding: 5px 0; }
+.ios-page .bullet { background: var(--ios-cyan); }
+.ios-page .card-x-labels span { color: var(--ios-label-3); }
+
+/* ---------- Analysis panel ---------- */
+.ios-page .analysis { padding: 76px 0; }
+.ios-page .analysis-subtitle { color: var(--ios-label-2); }
+.ios-page .dot { background: rgba(100, 210, 255, 0.28); }
+.ios-page .analysis-dots::before,
+.ios-page .analysis-dots::after {
+  background: repeating-linear-gradient(
+    90deg,
+    rgba(100, 210, 255, 0.22) 0px,
+    rgba(100, 210, 255, 0.22) 6px,
+    transparent 6px,
+    transparent 12px
+  );
+}
+.ios-page .analysis-chart-wrapper {
+  background: var(--glass-fill);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+  border: 1px solid var(--glass-hairline-soft);
+  border-radius: var(--r-lg);
+  padding: 20px;
+  box-shadow: var(--glass-shadow), var(--glass-inner);
+}
+.ios-page .analysis-chart-wrapper::before {
+  left: 12%;
+  right: 12%;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.5), transparent);
+}
+.ios-page .analysis-chart-header h4 { font-size: 0.92rem; font-weight: 600; letter-spacing: -0.015em; }
+.ios-page .badge {
+  color: var(--ios-cyan);
+  background: rgba(100, 210, 255, 0.14);
+  border: none;
+  border-radius: 999px;
+  padding: 4px 12px;
+  font-weight: 600;
+}
+.ios-page .chart-x-labels span { color: var(--ios-label-3); }
+
+/* ---------- Partners strip ---------- */
+.ios-page .partners {
+  border-top: 1px solid var(--glass-hairline-soft);
+  border-bottom: 1px solid var(--glass-hairline-soft);
+  background: rgba(255, 255, 255, 0.03);
+  backdrop-filter: blur(20px) saturate(160%);
+  -webkit-backdrop-filter: blur(20px) saturate(160%);
+}
+.ios-page .partner-item { color: var(--ios-label-2); }
+.ios-page .partner-item:hover { color: var(--ios-label); }
+.ios-page .partner-name { font-weight: 500; letter-spacing: -0.01em; }
+
+/* ---------- CTA + footer ---------- */
+.ios-page .cta { padding: 96px 0 64px; }
+.ios-page .cta-title { font-size: 1.8rem; font-weight: 700; letter-spacing: -0.03em; }
+.ios-page .footer-content { border-top: 1px solid var(--glass-hairline-soft); }
+.ios-page .footer-desc { color: var(--ios-label-3); }
+.ios-page .footer-links-col h4 { font-weight: 600; letter-spacing: -0.015em; }
+.ios-page .footer-links-col a { color: var(--ios-label-3); }
+.ios-page .footer-links-col a:hover { color: var(--ios-cyan); }
+.ios-page .footer-bottom { border-top: 1px solid var(--glass-hairline-soft); }
+.ios-page .footer-bottom p { color: var(--ios-label-3); }
+
+/* ---------- Anchors must clear the floating glass bar ---------- */
+.ios-page .hero,
+.ios-page section[id],
+.ios-page [id].board-section { scroll-margin-top: 104px; }
+
+/* ---------- Responsive ---------- */
+@media (max-width: 1160px) {
+  .ios-page .stats-bar,
+  .ios-page .stats-bar-dark { margin: 0 24px; }
+}
+@media (max-width: 1024px) {
+  .ios-page .hero-title { font-size: 2.5rem; }
+  .ios-page .hero-subtitle { margin-left: auto; margin-right: auto; }
+}
+@media (max-width: 768px) {
+  .ios-page .hero { padding: 128px 0 60px; }
+  .ios-page .hero-title { font-size: 2rem; letter-spacing: -0.03em; }
+  .ios-page .stats-bar,
+  .ios-page .stats-bar-dark { margin: 0 16px; border-radius: var(--r-md); }
+  .ios-page .solution-card { border-radius: var(--r-md); }
+  .ios-page .analysis-chart-wrapper { border-radius: var(--r-md); }
+}
+@media (max-width: 480px) {
+  .ios-page .hero-title { font-size: 1.7rem; }
+}
+
+/* ---------- Drawer heading: company mark + name ---------- */
+.markets-page .drawer-heading {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+.markets-page .drawer-heading-text { min-width: 0; }
+/* Kept out of flow until the bitmap lands: no reserved gap, no broken icon. */
+.markets-page .drawer-logo {
+  display: none;
+  flex: 0 0 auto;
+  width: 34px;
+  height: 34px;
+  padding: 3px;
+  object-fit: contain;
+  border-radius: 9px;
+  background: rgba(255, 255, 255, 0.94);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35), inset 0 0 0 1px rgba(255, 255, 255, 0.5);
+}
+.markets-page .drawer-logo.loaded { display: block; }
+@media (max-width: 640px) {
+  .markets-page .drawer-logo { width: 30px; height: 30px; border-radius: 8px; }
+}
