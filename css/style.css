@@ -1329,33 +1329,39 @@ body {
   text-transform: uppercase;
   color: var(--text-muted);
 }
-.filter-seg {
-  display: inline-flex;
-  flex-wrap: wrap;
-  gap: 3px;
-  padding: 3px;
-  background: rgba(3, 7, 18, 0.7);
+/* Native select, restyled: appearance:none strips the OS chrome so the
+   control matches the dark panel, and a pair of gradient halves draws the
+   chevron in place of the UA arrow. */
+.market-select {
+  -webkit-appearance: none;
+  appearance: none;
+  padding: 8px 34px 8px 14px;
+  font-family: inherit;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  background-color: rgba(3, 7, 18, 0.7);
+  background-image: linear-gradient(45deg, transparent 50%, var(--text-secondary) 50%),
+    linear-gradient(135deg, var(--text-secondary) 50%, transparent 50%);
+  background-position: right 15px center, right 10px center;
+  background-size: 5px 5px, 5px 5px;
+  background-repeat: no-repeat;
   border: 1px solid var(--border-color);
   border-radius: 8px;
-}
-.filter-btn {
-  padding: 6px 14px;
-  font-family: inherit;
-  font-size: 0.78rem;
-  font-weight: 600;
-  color: var(--text-secondary);
-  background: transparent;
-  border: none;
-  border-radius: 6px;
   cursor: pointer;
-  white-space: nowrap;
-  transition: color 0.2s ease, background 0.2s ease, box-shadow 0.2s ease;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
 }
-.filter-btn:hover { color: var(--text-primary); }
-.filter-btn.active {
-  color: #fff;
-  background: linear-gradient(135deg, var(--gradient-start), var(--gradient-end));
-  box-shadow: 0 2px 10px rgba(59, 130, 246, 0.28);
+.market-select:hover { border-color: var(--border-glow); }
+.market-select:focus-visible {
+  outline: none;
+  border-color: var(--accent-blue);
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.25);
+}
+/* The popup list is UA-drawn; on Windows/Linux it inherits the control's
+   colours, so set them explicitly instead of trusting the dark theme. */
+.market-select option {
+  color: var(--text-primary);
+  background-color: var(--bg-secondary);
 }
 
 /* ---------- Board sections ---------- */
@@ -1940,8 +1946,7 @@ body {
   .markets-title { font-size: 1.7rem; }
   .markets-subtitle { font-size: 0.86rem; }
   .market-filter-section { gap: 8px 10px; margin-bottom: 20px; }
-  .filter-seg { width: 100%; }
-  .filter-btn { flex: 1 0 auto; padding: 7px 10px; font-size: 0.74rem; }
+  .market-select { flex: 1 1 140px; padding: 8px 32px 8px 12px; font-size: 0.78rem; }
   .model-seg { width: 100%; }
   .model-seg button { flex: 1; padding: 8px 6px; font-size: 0.76rem; }
   .board-title { font-size: 1.15rem; }

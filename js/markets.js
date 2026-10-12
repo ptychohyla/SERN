@@ -996,22 +996,21 @@
     if (note) note.textContent = t('model.note.' + state.model);
   }
 
-  // Market filter chips, built from the universe's market codes so the row
-  // can never drift from the data. 'all' leads; the choice is persisted and
-  // shared by every view (heatmap, board, donuts, data-insufficient list).
+  // Market filter dropdown, built from the universe's market codes so the
+  // options can never drift from the data. 'all' leads; the choice is
+  // persisted and shared by every view (heatmap, board, donuts,
+  // data-insufficient list).
   function renderMarketFilter() {
-    var seg = document.getElementById('market-filter');
-    if (!seg) return;
-    seg.innerHTML = '';
-    seg.setAttribute('aria-label', t('filter.label'));
+    var select = document.getElementById('market-filter');
+    if (!select) return;
+    select.innerHTML = '';
+    select.setAttribute('aria-label', t('filter.label'));
     ['all'].concat(MARKET_ORDER).forEach(function (key) {
-      var active = state.market === key;
-      var btn = el('button', 'filter-btn' + (active ? ' active' : ''),
+      var opt = el('option', null,
         key === 'all' ? t('filter.all') : t('market.' + key));
-      btn.type = 'button';
-      btn.dataset.market = key;
-      btn.setAttribute('aria-pressed', active ? 'true' : 'false');
-      seg.appendChild(btn);
+      opt.value = key;
+      opt.selected = state.market === key;
+      select.appendChild(opt);
     });
   }
 
@@ -1021,15 +1020,12 @@
       state.market = 'all';
     }
     renderMarketFilter();
-    var filterSeg = document.getElementById('market-filter');
-    filterSeg.addEventListener('click', function (ev) {
-      var btn = ev.target.closest ? ev.target.closest('.filter-btn') : null;
-      if (!btn || !filterSeg.contains(btn)) return;
-      var next = btn.dataset.market;
+    var marketSelect = document.getElementById('market-filter');
+    marketSelect.addEventListener('change', function () {
+      var next = marketSelect.value;
       if (next === state.market) return;
       state.market = next;
       localStorage.setItem('sern-market', next);
-      renderMarketFilter();
       refreshAllViews();
     });
 

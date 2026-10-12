@@ -200,7 +200,7 @@
   var logoPending = [];
   var logoActive = 0;
   var logoStates = {};
-  var logoLoadedUrl = {};
+  var logoImages = {};
   var logoTargets = {};
   var logoObserver = null;
   var logoObservedContainer = null;
@@ -212,27 +212,42 @@
       '?size=64&format=png&fallback=monogram';
   }
 
-  function makeLogoImage(symbol) {
-    var url = logoLoadedUrl[symbol];
-    if (!url) return null;
+  // One <img> per symbol, kept alive for the session. render() wipes the
+  // wall on every quote batch, so building a fresh element each pass would
+  // re-decode a bitmap that is already sitting in the HTTP cache. Reusing
+  // the node lets the browser paint straight from its decoded copy.
+  function createLogoImage(symbol) {
     var img = document.createElement('img');
     img.className = 'heat-logo';
-    img.src = url;
     img.alt = '';
     img.setAttribute('aria-hidden', 'true');
     img.setAttribute('decoding', 'async');
     img.setAttribute('referrerpolicy', 'no-referrer');
     img.draggable = false;
     if ('fetchPriority' in img) img.fetchPriority = 'low';
-    img.addEventListener('error', function () { img.remove(); });
+    // A logo that fails once is dropped for good: the node leaves the cache
+    // and no later render re-requests the URL. State and the concurrency
+    // slot are owned by the loader below, which sees this listener fire
+    // first and still reads the symbol as 'loading'.
+    img.addEventListener('error', function () {
+      img.remove();
+      if (logoImages[symbol] === img) delete logoImages[symbol];
+    });
     return img;
   }
 
+  // The tile is handed over while render() is still assembling the tree, so
+  // it is deliberately NOT required to be connected yet: logoTargets is
+  // rebuilt on every render and always holds the newest node, which means an
+  // async load can never land in a stale tile. Moving the cached node keeps
+  // the image decoded, so a repaint after innerHTML='' costs no new fetch.
   function attachLogo(symbol) {
+    var img = logoImages[symbol];
     var tile = logoTargets[symbol];
-    if (!tile || !tile.isConnected || tile.querySelector('.heat-logo')) return;
-    var img = makeLogoImage(symbol);
-    if (img) tile.insertBefore(img, tile.firstChild);
+    if (!img || !tile) return;
+    if (img.parentNode === tile) return;
+    if (img.parentNode) img.parentNode.removeChild(img);
+    tile.insertBefore(img, tile.firstChild);
   }
 
   function pumpLogos() {
@@ -246,24 +261,26 @@
     }
   }
 
+  // The node that is later inserted into the tile doubles as the probe, so a
+  // successful logo costs one element and one request per symbol per session.
+  // Concurrency stays capped; nothing enters the DOM until it has loaded.
   function loadLogo(symbol) {
-    var probe = new Image();
-    probe.decoding = 'async';
-    probe.referrerPolicy = 'no-referrer';
-    if ('fetchPriority' in probe) probe.fetchPriority = 'low';
-    probe.onload = function () {
+    var img = createLogoImage(symbol);
+    logoImages[symbol] = img;
+    img.addEventListener('load', function () {
+      if (logoStates[symbol] !== 'loading') return;
       logoStates[symbol] = 'ok';
-      logoLoadedUrl[symbol] = logoUrl(symbol);
       logoActive--;
       attachLogo(symbol);
       pumpLogos();
-    };
-    probe.onerror = function () {
+    });
+    img.addEventListener('error', function () {
+      if (logoStates[symbol] !== 'loading') return;
       logoStates[symbol] = 'fail';
       logoActive--;
       pumpLogos();
-    };
-    probe.src = logoUrl(symbol);
+    });
+    img.src = logoUrl(symbol);
   }
 
   function queueLogo(symbol, tile) {
