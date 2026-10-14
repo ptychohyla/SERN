@@ -1665,6 +1665,9 @@ body {
 }
 .drawer-title { font-size: 1.15rem; font-weight: 700; }
 .drawer-sub { margin-top: 4px; font-size: 0.8rem; color: var(--text-muted); }
+.drawer-sub .drawer-change { margin-left: 5px; font-weight: 600; }
+.drawer-sub .drawer-change.up { color: var(--accent-red); }
+.drawer-sub .drawer-change.down { color: var(--accent-green); }
 .drawer-close {
   color: var(--text-muted);
   background: transparent;
@@ -2666,6 +2669,8 @@ input:focus-visible,
 }
 .markets-page .drawer-title { font-size: 1.3rem; font-weight: 700; letter-spacing: -0.03em; }
 .markets-page .drawer-sub { color: var(--ios-label-3); font-size: 0.8rem; }
+.markets-page .drawer-sub .drawer-change.up { color: var(--ios-red); }
+.markets-page .drawer-sub .drawer-change.down { color: var(--ios-green); }
 .markets-page .drawer-content { padding: 20px 26px 30px; }
 .markets-page .drawer-close,
 .markets-page .drawer-fav {

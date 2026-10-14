@@ -103,11 +103,6 @@
       'drawer.debt': 'Debt / equity',
       'drawer.marketcap': 'Market cap',
       'drawer.currency': 'Currency',
-      'drawer.source': 'Data source',
-
-      'source.yahoo': 'Yahoo Finance',
-      'source.stockapi': 'StockAPI (self-hosted)',
-      'source.price': 'Price only (fallback)',
 
       'common.na': 'N/A',
 
@@ -277,11 +272,6 @@
       'drawer.debt': '负债/权益',
       'drawer.marketcap': '总市值',
       'drawer.currency': '币种',
-      'drawer.source': '数据来源',
-
-      'source.yahoo': 'Yahoo Finance',
-      'source.stockapi': 'StockAPI（自建）',
-      'source.price': '仅价格（备用源）',
 
       'common.na': '暂无',
 

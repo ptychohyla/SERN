@@ -676,10 +676,18 @@
 
   function renderDrawerSub(entry) {
     var d = entry.data;
-    var suffix = '';
-    if (d && d.price !== null && d.currency) suffix = ' · ' + d.currency + ' ' + fmt(d.price, 2);
-    else if (entry.external && !d) suffix = ' · ' + t('freshness.loading');
-    document.getElementById('drawer-sub').textContent = entry.meta.symbol + suffix;
+    var sub = document.getElementById('drawer-sub');
+    sub.textContent = '';
+    sub.appendChild(document.createTextNode(entry.meta.symbol));
+    if (d && d.price !== null && d.currency) {
+      sub.appendChild(document.createTextNode(' · ' + d.currency + ' ' + fmt(d.price, 2)));
+      if (d.changePct !== null && d.changePct !== undefined && isFinite(d.changePct)) {
+        sub.appendChild(el('span', 'drawer-change ' + (d.changePct >= 0 ? 'up' : 'down'),
+          ' ' + fmtPct(d.changePct, 2)));
+      }
+    } else if (entry.external && !d) {
+      sub.appendChild(document.createTextNode(' · ' + t('freshness.loading')));
+    }
   }
 
   function renderDrawerMetrics(entry) {
@@ -707,9 +715,7 @@
       ['metric.momentum', fmtPct(d.momentum12m, 1)],
       ['drawer.debt', d.debtToEquity === null ? t('common.na') : fmt(d.debtToEquity, 1)],
       ['drawer.marketcap', fmtMarketCap(d.marketCap, d.currency)],
-      ['drawer.currency', d.currency || t('common.na')],
-      ['drawer.source', (d.sources && d.sources.length ? d.sources : [d.source || 'yahoo'])
-        .map(function (s) { return t('source.' + s); }).join(' + ')]
+      ['drawer.currency', d.currency || t('common.na')]
     ];
     rows.forEach(function (r) { metrics.appendChild(metricBox(t(r[0]), r[1])); });
   }
