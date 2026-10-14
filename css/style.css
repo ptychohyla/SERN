@@ -1522,6 +1522,7 @@ body {
 .mini-bar-valuation { background: linear-gradient(90deg, #3b82f6, #06b6d4); }
 .mini-bar-quality { background: linear-gradient(90deg, #22c55e, #84cc16); }
 .mini-bar-growth { background: linear-gradient(90deg, #f97316, #eab308); }
+.mini-bar-momentum { background: linear-gradient(90deg, #a855f7, #ec4899); }
 
 /* ---------- Distribution donuts ---------- */
 .distribution-section { margin-bottom: 56px; }
@@ -2481,9 +2482,9 @@ input:focus-visible,
   top: 3px;
   bottom: 3px;
   left: 3px;
-  /* Equal slots: the thumb is one third of the track, so a 100% translate
+  /* Equal slots: the thumb is one quarter of the track, so a 100% translate
      of its own width lands it exactly on the next segment. */
-  width: calc((100% - 6px) / 3);
+  width: calc((100% - 6px) / 4);
   border-radius: 7px;
   background: rgba(255, 255, 255, 0.17);
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.22);
@@ -2493,7 +2494,44 @@ input:focus-visible,
 .markets-page .model-seg[data-thumb='1']::after { transform: translateX(100%); }
 .markets-page .model-seg[data-thumb='2']::after { transform: translateX(200%); }
 .markets-page .model-seg[data-thumb='0']::after { transform: translateX(0); }
+.markets-page .model-seg[data-thumb='3']::after { transform: translateX(300%); }
 .markets-page .model-note { color: var(--ios-label-3); font-size: 0.74rem; line-height: 1.5; }
+
+/* Formula breakdown under the strategy note: weights are read straight from
+   js/scoring.js so the displayed formula tracks the live model config. */
+.markets-page .model-formula {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 10px;
+  padding: 10px 12px;
+  border: 1px solid var(--glass-hairline-soft);
+  border-radius: var(--r-xs);
+  background: rgba(120, 120, 128, 0.12);
+}
+.markets-page .model-formula-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 8px;
+}
+.markets-page .model-formula-label {
+  flex: 0 0 auto;
+  min-width: 4.5em;
+  font-size: 0.7rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: var(--ios-label-2);
+}
+.markets-page .model-formula-code {
+  flex: 1 1 12ch;
+  font-size: 0.72rem;
+  line-height: 1.5;
+  color: var(--ios-label-3);
+  background: none;
+  padding: 0;
+  word-break: break-word;
+}
 
 /* ---------- Rank board: inset grouped list ---------- */
 .markets-page .rank-row {
@@ -2666,6 +2704,7 @@ input:focus-visible,
 .markets-page .mini-bar-valuation { background: linear-gradient(90deg, #0a84ff, #64d2ff); }
 .markets-page .mini-bar-quality { background: linear-gradient(90deg, #30d158, #a8e05f); }
 .markets-page .mini-bar-growth { background: linear-gradient(90deg, #ff9f0a, #ffd60a); }
+.markets-page .mini-bar-momentum { background: linear-gradient(90deg, #bf5af2, #ff2d55); }
 .markets-page .drawer-yahoo {
   background: linear-gradient(180deg, #0a84ff, #0060df);
   border: 1px solid rgba(120, 190, 255, 0.35);

@@ -631,7 +631,8 @@
     pe: 'drawer.pe', forwardPe: 'drawer.fpe', pb: 'drawer.pb', ps: 'drawer.ps',
     evEbitda: 'drawer.evebitda', divYield: 'drawer.dividend', peg: 'drawer.peg',
     roe: 'drawer.roe', fcfYield: 'metric.fcf-yield', margin: 'drawer.margin',
-    earningsGrowth: 'drawer.earnings-growth', revenueGrowth: 'drawer.revenue-growth'
+    earningsGrowth: 'drawer.earnings-growth', revenueGrowth: 'drawer.revenue-growth',
+    momentum12m: 'metric.momentum'
   };
   function metricLabel(k) {
     return t(METRIC_LABEL_KEY[k] || k);
@@ -650,6 +651,9 @@
   function growthTip() {
     return t('score.tip.growth') + ' ' +
       ['earningsGrowth', 'revenueGrowth'].map(metricLabel).join(' · ');
+  }
+  function momentumTip() {
+    return t('score.tip.momentum') + ' ' + metricLabel('momentum12m');
   }
 
   // ==================== Drawer ====================
@@ -700,6 +704,7 @@
       ['drawer.fcf', fmtMarketCap(d.fcf, d.currency)],
       ['drawer.earnings-growth', fmtPct(d.earningsGrowth, 1)],
       ['drawer.revenue-growth', fmtPct(d.revenueGrowth, 1)],
+      ['metric.momentum', fmtPct(d.momentum12m, 1)],
       ['drawer.debt', d.debtToEquity === null ? t('common.na') : fmt(d.debtToEquity, 1)],
       ['drawer.marketcap', fmtMarketCap(d.marketCap, d.currency)],
       ['drawer.currency', d.currency || t('common.na')],
@@ -789,6 +794,9 @@
       breaks.appendChild(scoreBreakBar(t('score.valuation'), entry.scores.valuation, 'mini-bar-valuation', valuationTip()));
       breaks.appendChild(scoreBreakBar(t('score.quality'), entry.scores.quality, 'mini-bar-quality', qualityTip()));
       breaks.appendChild(scoreBreakBar(t('score.growth'), entry.scores.growth, 'mini-bar-growth', growthTip()));
+      if (window.SERN.scoring.models[state.model].composite.momentum) {
+        breaks.appendChild(scoreBreakBar(t('score.momentum'), entry.scores.momentum, 'mini-bar-momentum', momentumTip()));
+      }
     }
 
     renderDrawerMetrics(entry);
@@ -1009,11 +1017,42 @@
   }
 
   // ==================== Controls ====================
-  // The scoring-principle note under the model switcher follows the selected
-  // strategy (and the active language).
+  // The scoring-principle note + formula under the model switcher follow the
+  // selected strategy (and the active language). The formula is built straight
+  // from SERN.scoring.models so it can never drift from the scoring code.
   function updateModelNote() {
     var note = document.getElementById('model-note');
     if (note) note.textContent = t('model.note.' + state.model);
+    var box = document.getElementById('model-formula');
+    if (!box) return;
+    var cfg = window.SERN.scoring.models[state.model];
+    box.innerHTML = '';
+    if (!cfg) return;
+
+    var scopeKey = cfg.scope === 'sector' ? 'sector' : 'market';
+    // valuation line: metric (weight%) · … , scope shown so 行业/全市场 is explicit
+    var valWeights = Object.keys(cfg.valuation).map(function (k) {
+      return metricLabel(k) + ' ' + cfg.valuation[k] + '%';
+    }).join(' · ');
+    addFormulaLine(box, t('formula.valuation'), valWeights + '  ·  ' + t('formula.scope.' + scopeKey));
+
+    // composite line: weights straight from the config
+    var parts = Object.keys(cfg.composite).filter(function (k) {
+      return cfg.composite[k] > 0;
+    }).map(function (k) {
+      return t('score.' + k) + ' ' + cfg.composite[k] + '%';
+    }).join(' + ');
+    addFormulaLine(box, t('formula.composite'),
+      parts + (cfg.leverage ? '  −  ' + t('formula.leverage') : ''));
+  }
+
+  function addFormulaLine(box, label, value) {
+    var row = el('div', 'model-formula-row');
+    row.appendChild(el('span', 'model-formula-label', label));
+    var code = el('code', 'model-formula-code');
+    code.textContent = value;
+    row.appendChild(code);
+    box.appendChild(row);
   }
 
   // Market filter dropdown, built from the universe's market codes so the

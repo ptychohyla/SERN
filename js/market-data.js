@@ -11,16 +11,17 @@
   // has always consumed (window.SERN.yahoo):
   //   getQuote / getChart / getSpark / refreshQuote / clearCache / prefetch
   //
-  // Quotes: a batch warm (chunks of 20, 3 in flight) fills the snapshot map
-  // off the critical path; getQuote then merges the warmed price with a lazy
-  // per-symbol fundamentals fetch, field-level (a field already set is never
-  // overwritten). Fundamentals get their own warm (8 in flight, started at
-  // the same moment as the quote warm, joined symbol-by-symbol when the entry
-  // walk gets there first) and their own cache key — /v1/fundamentals is one
-  // upstream request per symbol, so it dominates the cold load. A session
-  // availability flag plus per-endpoint cooldowns keep an unreachable origin
-  // from stalling the page: failures resolve to "insufficient"/"failed"
-  // entries the UI can retry, never to a hang.
+  // Every data call is batched where the Worker supports it:
+  //   - /v1/quote          chunks of 20, 3 in flight  (prices for the whole pool)
+  //   - /v1/fundamentals   chunks of 20, 3 in flight  (Worker fans out server-side
+  //                        sharing one cookie+crumb — ~150 requests → ~8)
+  //   - /v1/kline/:symbol  per-symbol by nature (sparkline = drawer/ticker only)
+  //   - /v1/search         per-query by nature
+  // getQuote merges the warmed price with the warmed fundamentals field-level
+  // (a field already set is never overwritten). A session availability flag
+  // plus per-endpoint cooldowns keep an unreachable origin from stalling the
+  // page: failures resolve to "insufficient"/"failed" entries the UI can
+  // retry, never to a hang.
 
   var QUOTE_SOURCES = ['stockapi', 'stockapiFundamentals'];
 
@@ -141,7 +142,7 @@
       pe: null, forwardPe: null, pb: null, ps: null, evEbitda: null,
       peg: null, divYield: null, roe: null, margin: null, fcf: null,
       fcfYield: null, earningsGrowth: null, revenueGrowth: null,
-      debtToEquity: null,
+      debtToEquity: null, momentum12m: null,
       insufficient: false,
       source: null
     };
@@ -379,22 +380,39 @@
       marketCap: num(d.market_cap),
       earningsGrowth: num(d.earnings_growth),
       revenueGrowth: num(d.revenue_growth),
-      debtToEquity: num(d.debt_to_equity)
+      debtToEquity: num(d.debt_to_equity),
+      momentum12m: num(d.momentum_12m)
     };
   }
 
-  // The /v1/fundamentals endpoint is per-symbol (one upstream quoteSummary per
-  // call), so 150 stocks is the dominant cold-load cost. Warming them up front
-  // in a wide pool — in parallel with the quote warm, not behind it — is what
-  // keeps the entry queue from serializing on one request at a time.
-  var FUND_CONCURRENCY = 8;
+  // Pure: batch /v1/fundamentals body -> array aligned to the request order.
+  // A per-symbol failure (or a missing slot) maps to null so the caller can
+  // pair positionally — the Worker returns Yahoo-form symbols and preserves
+  // request order, so index is the only reliable join key.
+  function parseStockapiFundamentalsBatch(text) {
+    var json;
+    try { json = JSON.parse(text); } catch (e) { return []; }
+    return ((json && json.data) || []).map(function (item) {
+      if (!item || item.error || typeof item.symbol !== 'string') return null;
+      return parseStockapiFundamentals(JSON.stringify({ data: item }));
+    });
+  }
+
+  // Fundamentals are the dominant cold-load cost (one upstream quoteSummary per
+  // symbol), so the warm walks /v1/fundamentals in batches of 20 — the Worker
+  // shares one cookie+crumb across the batch and fans out server-side, turning
+  // ~150 browser requests into ~8. These cap the Worker request's own upstream
+  // fan-out (Cloudflare free tier = 50 subrequests/request).
+  var FUND_BATCH = 20;         // Worker hard limit for /v1/fundamentals?symbols=
+  var FUND_BATCH_INFLIGHT = 3; // Worker requests in flight at once
   var fundInflight = {};
 
+  // Single-symbol path: lazy fetch / re-fetch when the batch warm missed a
+  // symbol (e.g. its batch slot failed, or a favourite outside the universe).
   function stockapiFundamentals(symbol) {
     var hit = cacheEntry(FUND_KEY_PREFIX + symbol);
     if (hit) return Promise.resolve(hit.data);
-    // join the in-flight warm instead of issuing a duplicate request: the
-    // batch warm and the per-entry walk race each other on a cold cache
+    // join the in-flight warm instead of issuing a duplicate request
     if (fundInflight[symbol]) return fundInflight[symbol];
     var url = STOCKAPI_ORIGIN + '/v1/fundamentals/' + encodeURIComponent(symbol);
     var pending = fetchStockapi(url).then(function (text) {
@@ -409,16 +427,39 @@
     return pending;
   }
 
-  function warmFundamentals(symbols) {
-    if (!symbols.length) return Promise.resolve();
-    return runChunks(symbols, FUND_CONCURRENCY, function (symbol) {
+  function warmFundamentalsBatch(pairs) {
+    return runChunks(chunkOf(pairs, FUND_BATCH), FUND_BATCH_INFLIGHT, function (chunk) {
       // one network-level failure means the origin is unreachable: skip the
       // rest of the queue instead of burning the 8s abort budget each time
       if (isDown('stockapi-fund')) return Promise.resolve();
-      return stockapiFundamentals(symbol).then(null, function (err) {
+      var url = STOCKAPI_ORIGIN + '/v1/fundamentals?symbols=' + chunk.map(function (p) {
+        return encodeURIComponent(p.canonical);
+      }).join(',');
+      return fetchStockapi(url).then(function (text) {
+        var items = parseStockapiFundamentalsBatch(text);
+        chunk.forEach(function (p, i) {
+          var parsed = items[i];
+          if (!parsed) return; // that symbol's slot failed; stay a cache miss
+          cacheSet(FUND_KEY_PREFIX + p.internal, parsed);
+        });
+      }, function (err) {
+        // origin unreachable: stop the queue rather than burning the abort
+        // budget on every remaining batch
         if (err && err.network) markDown('stockapi-fund');
       });
     });
+  }
+
+  function warmFundamentals(symbols) {
+    if (!symbols.length) return Promise.resolve();
+    // only symbols the Worker can express as canonical quotes get batched;
+    // others fall back to the per-symbol path during the entry walk
+    var pairs = [];
+    symbols.forEach(function (s) {
+      var canonical = stockapiSymbol(s);
+      if (canonical) pairs.push({ internal: s, canonical: canonical });
+    });
+    return warmFundamentalsBatch(pairs);
   }
 
   // -------------------- field-level merge --------------------
@@ -427,7 +468,7 @@
   // fetch's price is garbage.
   var FILL_KEYS = ['price', 'marketCap', 'changePct', 'pe', 'forwardPe', 'pb', 'ps',
     'evEbitda', 'peg', 'divYield', 'roe', 'margin', 'fcf', 'fcfYield',
-    'earningsGrowth', 'revenueGrowth', 'debtToEquity'];
+    'earningsGrowth', 'revenueGrowth', 'debtToEquity', 'momentum12m'];
 
   function fillFrom(q, partial, source, contributors) {
     if (!partial) return;
@@ -661,6 +702,7 @@
       parseStockapiKline: parseStockapiKline,
       parseStockapiCandles: parseStockapiCandles,
       parseStockapiFundamentals: parseStockapiFundamentals,
+      parseStockapiFundamentalsBatch: parseStockapiFundamentalsBatch,
       stockapiQuote: stockapiQuote,
       resetCooldowns: function () {
         resetSourceCooldowns();

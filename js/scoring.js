@@ -23,6 +23,12 @@
       valuation: { forwardPe: 20, ps: 15, evEbitda: 15, peg: 50 },
       composite: { valuation: 40, quality: 25, growth: 35 },
       leverage: false
+    },
+    qualitymomentum: {
+      scope: 'sector',
+      valuation: { pe: 20, forwardPe: 20, pb: 20, ps: 15, evEbitda: 15, divYield: 10 },
+      composite: { valuation: 20, quality: 50, momentum: 30 },
+      leverage: true
     }
   };
 
@@ -104,10 +110,14 @@
 
     // quality / growth groups are market wide
     var qualityMetrics = ['roe', 'fcfYield', 'margin'];
+    var momentumMetrics = ['momentum12m'];
     var growthMetrics = ['earningsGrowth', 'revenueGrowth'];
-    var qGroups = {}, gGroups = {};
+    var qGroups = {}, gGroups = {}, mGroups = {};
     qualityMetrics.forEach(function (m) {
       qGroups[m] = valid.map(function (e) { return e.data[m]; }).filter(function (v) { return v !== null; });
+    });
+    momentumMetrics.forEach(function (m) {
+      mGroups[m] = valid.map(function (e) { return e.data[m]; }).filter(function (v) { return v !== null; });
     });
     growthMetrics.forEach(function (m) {
       gGroups[m] = valid.map(function (e) { return e.data[m]; }).filter(function (v) { return v !== null; });
@@ -128,6 +138,13 @@
       });
       var qualityScore = metricAvg({ roe: 1, fcfYield: 1, margin: 1 }, qParts);
 
+      var mParts = {};
+      momentumMetrics.forEach(function (m) {
+        var v = e.data[m];
+        mParts[m] = (v === null) ? null : percentile(mGroups[m], v, true);
+      });
+      var momentumScore = metricAvg({ momentum12m: 1 }, mParts);
+
       var gParts = {};
       growthMetrics.forEach(function (m) {
         var v = e.data[m];
@@ -135,17 +152,20 @@
       });
       var growthScore = metricAvg({ earningsGrowth: 1, revenueGrowth: 1 }, gParts);
 
-      // leverage penalty: Yahoo reports debt/equity as percent number (>5) or ratio
+      // Leverage penalty (spec §4.2: 有，最多 −10). Yahoo always reports
+      // debt/equity as a percentage (148.7 = 148.7%), so the old `d > 5 ? d/100
+      // : d` split read a near-debt-free 3.5% as a 3.5x ratio and max-penalized
+      // it. Normalize unconditionally; 1x D/E is the neutral point.
       var penalty = 0;
       if (cfg.leverage && e.data.debtToEquity !== null) {
-        var d = e.data.debtToEquity;
-        var ratio = d > 5 ? d / 100 : d;
+        var ratio = e.data.debtToEquity / 100;
         if (ratio > 1) penalty = Math.min(10, (ratio - 1) * 10);
       }
 
-      // renormalize composite over components available for this stock
+      // Composite: weights come from cfg.composite; missing components simply
+      // drop out and the rest renormalize (spec §4.3).
       var cw = cfg.composite;
-      var parts = { valuation: valScore, quality: qualityScore, growth: growthScore };
+      var parts = { valuation: valScore, quality: qualityScore, growth: growthScore, momentum: momentumScore };
       var sum = 0, wsum = 0;
       Object.keys(cw).forEach(function (k) {
         if (cw[k] > 0 && parts[k] !== null) {
@@ -159,6 +179,7 @@
         valuation: valScore,
         quality: qualityScore,
         growth: growthScore,
+        momentum: momentumScore,
         penalty: penalty,
         composite: composite,
         valPcts: valPcts
